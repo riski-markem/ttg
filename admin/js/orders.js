@@ -1,1 +1,304 @@
-import{ref as a,onValue as e,update as t,remove as n}from"https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";import{database as i,BIAYA_PLATFORM as r}from"./config.js";import{state as s}from"./state.js";import{updateKeuStatPemasukan as d}from"./keuangan.js";import{inisialisasiRetensi as l}from"./data-retention.js";export function muatDataOrder(){console.log("Memulai penarikan data pesanan..."),e(a(i,"orders"),a=>{console.log("Respons database pesanan diterima:",a.val()),s.allOrdersData=[];let e=0,t=0;a.exists()&&a.forEach(a=>{const n=a.val()||{};if(n.id=a.key,s.allOrdersData.push(n),"selesai"===n.status){e++;const a=r+(n.biaya_layanan_makanan||0)+(n.biaya_layanan_jasa||0);t+=a,a%1e3!=0&&console.warn("[Keuangan] Order dengan kontribusi TIDAK kelipatan Rp1.000:",{id:n.id,kontribusi:a,biaya_layanan_makanan:n.biaya_layanan_makanan||0,biaya_layanan_jasa:n.biaya_layanan_jasa||0,tipe_order:n.tipe_order||n.jenis_order||"-"})}}),document.getElementById("adminStatOrder").innerText=e,document.getElementById("adminStatPendapatan").innerText="Rp "+t.toLocaleString("id-ID"),s.totalPemasukanAdminGlobal=t,d(),s.allOrdersData.reverse(),renderOrdersUI(),o(),l()},a=>console.error("Gagal menarik data pesanan:",a))}function o(){const a=document.getElementById("ringkasanTotal"),e=document.getElementById("ringkasanSelesai"),t=document.getElementById("ringkasanBatal"),n=document.getElementById("ringkasanLain"),i=document.getElementById("ringkasanPemasukan");if(!a)return;const d=function(a){const e=new Date;if("hari"===a)return new Date(e.getFullYear(),e.getMonth(),e.getDate()).getTime();if("minggu"===a){const a=e.getDay(),t=0===a?6:a-1;return new Date(e.getFullYear(),e.getMonth(),e.getDate()-t).getTime()}return new Date(e.getFullYear(),e.getMonth(),1).getTime()}(s.periodeRingkasanAktif);let l=0,o=0,c=0,m=0,u=0;s.allOrdersData.forEach(a=>{!a.timestamp||a.timestamp<d||(l++,"selesai"===a.status?(o++,u+=r+(a.biaya_layanan_makanan||0)+(a.biaya_layanan_jasa||0)):"batal"===a.status||"batal_cust"===a.status?c++:m++)}),a.innerText=l,e.innerText=o,t.innerText=c,n.innerText=m,i.innerText="Rp "+u.toLocaleString("id-ID")}window.pilihPeriodeRingkasan=function(a){s.periodeRingkasanAktif=a,document.getElementById("btnPeriodeHari").classList.toggle("selected","hari"===a),document.getElementById("btnPeriodeMinggu").classList.toggle("selected","minggu"===a),document.getElementById("btnPeriodeBulan").classList.toggle("selected","bulan"===a),o()},window.renderOrdersUI=function(){const a=document.getElementById("listOrders");if(!a)return;a.innerHTML="";const e=(document.getElementById("searchOrder")?.value||"").toLowerCase(),t=document.getElementById("filterStatusOrder")?.value||"",n=document.getElementById("filterKotaOrder")?.value||"";!function(){const a=document.getElementById("filterKotaOrder");if(!a)return;const e=new Set(s.allOrdersData.map(a=>a.kota).filter(Boolean)),t=a.value;a.innerHTML='<option value="">Semua Kota</option>'+[...e].sort().map(a=>`<option value="${a}">${a}</option>`).join(""),e.has(t)&&(a.value=t)}();const i=s.allOrdersData.filter(a=>(!t||a.status===t)&&((!n||a.kota===n)&&(!e||[a.customer_nama,a.driver_nama,a.resto_nama,a.layanan,a.customer_wa].map(a=>(a||"").toString().toLowerCase()).join(" ").includes(e))));0!==i.length?i.forEach(e=>{const t=e.status||"pending",n="selesai"===t?"#27ae60":"batal"===t||"batal_cust"===t?"#e74c3c":"diambil"===t?"#2980b9":"#f39c12";let i=e.waktu_order||"";if(e.timestamp){const a=new Date(e.timestamp);i=`${a.toLocaleDateString("id-ID",{weekday:"long",day:"numeric",month:"long",year:"numeric"})} - ${a.toLocaleTimeString("id-ID",{hour:"2-digit",minute:"2-digit"})} WIB`}const r=e.ulasan?`\n            <div class="card-detail" style="margin-top:10px; background:#fdf2e9; padding:12px; border-radius:8px; border-left:4px solid #8e44ad; color:#8e44ad; font-style:italic; font-weight:700;">\n                💬 <b>Ulasan Pelanggan:</b><br>"${e.ulasan}"\n            </div>\n        `:"",s=(e.biaya_layanan_makanan||0)+(e.biaya_layanan_jasa||0),d=s>0?`<div class="card-detail">🧾 Biaya Layanan (dari customer): <b>Rp ${s.toLocaleString("id-ID")}</b></div>`:"",l=["selesai","batal","batal_cust","ditolak_resto"].includes(e.status),o=e.timestamp&&Date.now()-e.timestamp>72e5,c=!l&&o?'<div class="card-detail" style="margin-top:8px; color:#c0392b; font-weight:800; background:#fdecea; padding:8px; border-radius:6px; border:1px solid #f5b7b1;">⚠️ Order ini sudah lebih dari 2 jam belum selesai -- cek kemungkinan macet.</div>':"";let m="";l||(m+=`<button class="btn-suspend" style="flex:1;" onclick="batalkanPaksaOrder('${e.id}')">🛑 Batalkan Paksa</button>`,"diambil"===e.status&&(m+=`<button class="btn-setuju" style="flex:1;" onclick="paksaSelesaikanOrder('${e.id}')">✅ Tandai Selesai (Paksa)</button>`));const u=e.customer_wa||"00",g=document.createElement("div");g.className="card",g.innerHTML=`\n            <div style="display:flex; justify-content:space-between; margin-bottom:12px;">\n                <span style="font-size:11px; color:#7f8c8d; font-weight:800;">${i}</span>\n                <span style="font-size:11px; font-weight:800; color:${n}; text-transform:uppercase; padding:3px 8px; border-radius:12px; border:1px solid ${n}40; background:${n}10;">${t}</span>\n            </div>\n            <div class="card-title" style="font-size: 16px;">${e.layanan||"Layanan Tidak Diketahui"}</div>\n            <div class="card-detail">🏙️ Kota: <b>${e.kota||"⚠️ Tidak diketahui (order lama/gagal geocode)"}</b></div>\n            <div class="card-detail">👤 Cust: ${e.customer_nama||"Tanpa Nama"} (<a href="https://wa.me/62${u.substring(1)}" target="_blank" style="color:#2980b9; text-decoration:none;">${u}</a>)</div>\n            <div class="card-detail">🛵 Driver: <b>${e.driver_nama||"Belum ada"}</b> ${e.rating?" (⭐"+e.rating+")":""}</div>\n            ${d}\n            <div class="card-detail" style="margin-top:12px; background:#f8f9fa; padding:10px; border-radius:6px; border:1px solid #eee;">\n                ${e.detail_1||"-"} <br><span style="color:#bdc3c7;">⬇</span><br> ${e.detail_2||"-"}\n            </div>\n            ${e.catatan?`<div class="card-detail" style="margin-top:8px; color:#d35400; font-weight:700; background:#fff3e0; padding:8px; border-radius:6px;">📝 Catatan: ${e.catatan}</div>`:""}\n\n            ${r}\n            ${c}\n\n            ${m?`<div class="action-btns">${m}</div>`:""}\n            <div style="margin-top:10px; text-align:right;">\n                <button class="btn-hapus" onclick="hapusOrder('${e.id}')">🗑️ Hapus Data Lama</button>\n            </div>\n        `,a.appendChild(g)}):a.innerHTML="<p style='font-weight:600; color:#7f8c8d;'>Tidak ada pesanan yang cocok dengan pencarian/filter ini.</p>"},window.exportToCSV=function(){if(0===s.allOrdersData.length)return void alert("Belum ada data pesanan untuk di-download.");let a="Tanggal & Waktu,Kota,Layanan,Status,Nama Customer,WA Customer,Nama Driver,Detail 1 (Penjemputan),Detail 2 (Tujuan),Catatan,Bintang (Rating),Ulasan\n";s.allOrdersData.forEach(e=>{let t=e.waktu_order||"";if(e.timestamp){const a=new Date(e.timestamp);t=a.toLocaleDateString("id-ID")+" "+a.toLocaleTimeString("id-ID")}const n=`"${(e.kota||"").replace(/"/g,'""')}"`,i=`"${(e.layanan||"").replace(/"/g,'""')}"`,r=`"${(e.status||"").replace(/"/g,'""')}"`,s=`"${(e.customer_nama||"").replace(/"/g,'""')}"`,d=`"${(e.customer_wa||"").replace(/"/g,'""')}"`,l=`"${(e.driver_nama||"").replace(/"/g,'""')}"`,o=`"${(e.detail_1||"").replace(/"/g,'""')}"`,c=`"${(e.detail_2||"").replace(/"/g,'""')}"`,m=`"${(e.catatan||"").replace(/"/g,'""')}"`,u=e.rating||"",g=`"${(e.ulasan||"").replace(/"/g,'""')}"`;a+=`${t},${n},${i},${r},${s},${d},${l},${o},${c},${m},${u},${g}\n`});const e=new Blob([a],{type:"text/csv;charset=utf-8;"}),t=document.createElement("a"),n=URL.createObjectURL(e);t.setAttribute("href",n),t.setAttribute("download","Laporan_TTG_"+(new Date).toLocaleDateString("id-ID")+".csv"),t.style.visibility="hidden",document.body.appendChild(t),t.click(),document.body.removeChild(t)},window.hapusOrder=function(e){confirm("Yakin hapus data pesanan ini secara permanen?")&&n(a(i,`orders/${e}`)).then(()=>console.log("Terhapus")).catch(a=>alert("Gagal hapus: "+a))},window.batalkanPaksaOrder=function(e){const n=s.allOrdersData.find(a=>a.id===e);if(!n)return;const d=prompt("Alasan pembatalan paksa (opsional, misal: driver hilang kontak):")||"";confirm("Batalkan paksa pesanan ini? Tindakan ini untuk order yang macet/tidak ada progres.")&&t(a(i,`orders/${e}`),{status:"batal",alasan_batal_admin:d}).then(()=>{if("diambil"===n.status&&n.driver_wa){const e=r+(n.biaya_layanan_jasa||0),d=s.allDriversData.find(a=>a.wa===n.driver_wa),l=d&&d.saldo||0;t(a(i,`drivers/${n.driver_wa}`),{saldo:l+e}).catch(a=>alert("Order dibatalkan, tapi gagal mengembalikan saldo driver: "+a))}alert("Pesanan dibatalkan paksa.")}).catch(a=>alert("Gagal: "+a))},window.paksaSelesaikanOrder=function(e){const n=s.allOrdersData.find(a=>a.id===e);if(!n)return;const r=n.biaya_layanan_makanan||0;let d="Tandai pesanan ini selesai secara paksa?";r>0&&n.driver_wa&&(d+=`\n\nSaldo driver akan otomatis terpotong Rp ${r.toLocaleString("id-ID")} (biaya layanan makanan).`),confirm(d)&&t(a(i,`orders/${e}`),{status:"selesai"}).then(()=>{if(r>0&&n.driver_wa){const e=s.allDriversData.find(a=>a.wa===n.driver_wa),d=e&&e.saldo||0;t(a(i,`drivers/${n.driver_wa}`),{saldo:d-r}).catch(a=>alert("Order ditandai selesai, tapi gagal memotong saldo driver: "+a))}alert("Pesanan ditandai selesai.")}).catch(a=>alert("Gagal: "+a))};
+import { ref, query, orderByChild, limitToLast, onValue, update, remove } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
+import { database, BIAYA_PLATFORM } from "./config.js";
+import { state } from "./state.js";
+import { updateKeuStatPemasukan } from "./keuangan.js";
+import { inisialisasiRetensi } from "./data-retention.js";
+
+const BATAS_ORDER_DIMUAT = 1000;
+
+let retensiSudahDijalankan = false;
+
+export function muatDataOrder() {
+  const ordersQuery = query(ref(database, "orders"), orderByChild("timestamp"), limitToLast(BATAS_ORDER_DIMUAT));
+
+  onValue(
+    ordersQuery,
+    (snapshot) => {
+      state.allOrdersData = [];
+      let totalSelesai = 0;
+      let totalPendapatan = 0;
+
+      snapshot.forEach((child) => {
+        const order = child.val() || {};
+        order.id = child.key;
+        state.allOrdersData.push(order);
+
+        if (order.status === "selesai") {
+          totalSelesai++;
+          const kontribusi = BIAYA_PLATFORM + (order.biaya_layanan_makanan || 0) + (order.biaya_layanan_jasa || 0);
+          totalPendapatan += kontribusi;
+          if (kontribusi % 1000 !== 0) {
+            console.warn("[Keuangan] Order dengan kontribusi TIDAK kelipatan Rp1.000:", {
+              id: order.id,
+              kontribusi,
+              biaya_layanan_makanan: order.biaya_layanan_makanan || 0,
+              biaya_layanan_jasa: order.biaya_layanan_jasa || 0,
+              tipe_order: order.tipe_order || order.jenis_order || "-",
+            });
+          }
+        }
+      });
+
+      document.getElementById("adminStatOrder").innerText = totalSelesai;
+      document.getElementById("adminStatPendapatan").innerText = "Rp " + totalPendapatan.toLocaleString("id-ID");
+      state.totalPemasukanAdminGlobal = totalPendapatan;
+      updateKeuStatPemasukan();
+
+      state.allOrdersData.reverse();
+      renderOrdersUI();
+      hitungRingkasan();
+
+      if (!retensiSudahDijalankan) {
+        retensiSudahDijalankan = true;
+        inisialisasiRetensi();
+      }
+    },
+    (err) => console.error("Gagal menarik data pesanan:", err)
+  );
+}
+
+function hitungRingkasan() {
+  const elTotal = document.getElementById("ringkasanTotal");
+  const elSelesai = document.getElementById("ringkasanSelesai");
+  const elBatal = document.getElementById("ringkasanBatal");
+  const elLain = document.getElementById("ringkasanLain");
+  const elPemasukan = document.getElementById("ringkasanPemasukan");
+  if (!elTotal) return;
+
+  const batasWaktu = hitungAwalPeriode(state.periodeRingkasanAktif);
+
+  let total = 0;
+  let selesai = 0;
+  let batal = 0;
+  let lain = 0;
+  let pemasukan = 0;
+
+  state.allOrdersData.forEach((order) => {
+    if (!order.timestamp || order.timestamp < batasWaktu) return;
+    total++;
+    if (order.status === "selesai") {
+      selesai++;
+      pemasukan += BIAYA_PLATFORM + (order.biaya_layanan_makanan || 0) + (order.biaya_layanan_jasa || 0);
+    } else if (order.status === "batal" || order.status === "batal_cust") {
+      batal++;
+    } else {
+      lain++;
+    }
+  });
+
+  elTotal.innerText = total;
+  elSelesai.innerText = selesai;
+  elBatal.innerText = batal;
+  elLain.innerText = lain;
+  elPemasukan.innerText = "Rp " + pemasukan.toLocaleString("id-ID");
+}
+
+function hitungAwalPeriode(periode) {
+  const sekarang = new Date();
+  if (periode === "hari") {
+    return new Date(sekarang.getFullYear(), sekarang.getMonth(), sekarang.getDate()).getTime();
+  }
+  if (periode === "minggu") {
+    const hari = sekarang.getDay();
+    const offset = hari === 0 ? 6 : hari - 1;
+    return new Date(sekarang.getFullYear(), sekarang.getMonth(), sekarang.getDate() - offset).getTime();
+  }
+  return new Date(sekarang.getFullYear(), sekarang.getMonth(), 1).getTime();
+}
+
+window.pilihPeriodeRingkasan = function (periode) {
+  state.periodeRingkasanAktif = periode;
+  document.getElementById("btnPeriodeHari").classList.toggle("selected", periode === "hari");
+  document.getElementById("btnPeriodeMinggu").classList.toggle("selected", periode === "minggu");
+  document.getElementById("btnPeriodeBulan").classList.toggle("selected", periode === "bulan");
+  hitungRingkasan();
+};
+
+window.renderOrdersUI = function () {
+  const listEl = document.getElementById("listOrders");
+  if (!listEl) return;
+  listEl.innerHTML = "";
+
+  const kataKunci = (document.getElementById("searchOrder")?.value || "").toLowerCase();
+  const statusFilter = document.getElementById("filterStatusOrder")?.value || "";
+  const kotaFilter = document.getElementById("filterKotaOrder")?.value || "";
+
+  perbaruiFilterKota();
+
+  const daftar = state.allOrdersData.filter((order) => {
+    const cocokStatus = !statusFilter || order.status === statusFilter;
+    const cocokKota = !kotaFilter || order.kota === kotaFilter;
+    const cocokKataKunci =
+      !kataKunci ||
+      [order.customer_nama, order.driver_nama, order.resto_nama, order.layanan, order.customer_wa]
+        .map((v) => (v || "").toString().toLowerCase())
+        .join(" ")
+        .includes(kataKunci);
+    return cocokStatus && cocokKota && cocokKataKunci;
+  });
+
+  if (daftar.length === 0) {
+    listEl.innerHTML = "<p style='font-weight:600; color:#7f8c8d;'>Tidak ada pesanan yang cocok dengan pencarian/filter ini.</p>";
+    return;
+  }
+
+  daftar.forEach((order) => {
+    listEl.appendChild(buatKartuOrder(order));
+  });
+};
+
+function perbaruiFilterKota() {
+  const select = document.getElementById("filterKotaOrder");
+  if (!select) return;
+  const kotaSet = new Set(state.allOrdersData.map((order) => order.kota).filter(Boolean));
+  const nilaiSaatIni = select.value;
+  select.innerHTML =
+    '<option value="">Semua Kota</option>' +
+    [...kotaSet].sort().map((kota) => `<option value="${kota}">${kota}</option>`).join("");
+  if (kotaSet.has(nilaiSaatIni)) select.value = nilaiSaatIni;
+}
+
+function buatKartuOrder(order) {
+  const status = order.status || "pending";
+  const warnaStatus =
+    status === "selesai" ? "#27ae60" : status === "batal" || status === "batal_cust" ? "#e74c3c" : status === "diambil" ? "#2980b9" : "#f39c12";
+
+  let waktuTampil = order.waktu_order || "";
+  if (order.timestamp) {
+    const tanggal = new Date(order.timestamp);
+    waktuTampil = `${tanggal.toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" })} - ${tanggal.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })} WIB`;
+  }
+
+  const blokUlasan = order.ulasan
+    ? `
+            <div class="card-detail" style="margin-top:10px; background:#fdf2e9; padding:12px; border-radius:8px; border-left:4px solid #8e44ad; color:#8e44ad; font-style:italic; font-weight:700;">
+                💬 <b>Ulasan Pelanggan:</b><br>"${order.ulasan}"
+            </div>
+        `
+    : "";
+
+  const biayaLayanan = (order.biaya_layanan_makanan || 0) + (order.biaya_layanan_jasa || 0);
+  const blokBiayaLayanan =
+    biayaLayanan > 0 ? `<div class="card-detail">🧾 Biaya Layanan (dari customer): <b>Rp ${biayaLayanan.toLocaleString("id-ID")}</b></div>` : "";
+
+  const statusFinal = ["selesai", "batal", "batal_cust", "ditolak_resto"].includes(order.status);
+  const lewatDuaJam = order.timestamp && Date.now() - order.timestamp > 7200000;
+  const blokPeringatanMacet =
+    !statusFinal && lewatDuaJam
+      ? '<div class="card-detail" style="margin-top:8px; color:#c0392b; font-weight:800; background:#fdecea; padding:8px; border-radius:6px; border:1px solid #f5b7b1;">⚠️ Order ini sudah lebih dari 2 jam belum selesai -- cek kemungkinan macet.</div>'
+      : "";
+
+  let tombolAksi = "";
+  if (!statusFinal) {
+    tombolAksi += `<button class="btn-suspend" style="flex:1;" onclick="batalkanPaksaOrder('${order.id}')">🛑 Batalkan Paksa</button>`;
+    if (order.status === "diambil") {
+      tombolAksi += `<button class="btn-setuju" style="flex:1;" onclick="paksaSelesaikanOrder('${order.id}')">✅ Tandai Selesai (Paksa)</button>`;
+    }
+  }
+
+  const customerWa = order.customer_wa || "00";
+  const kartu = document.createElement("div");
+  kartu.className = "card";
+  kartu.innerHTML = `
+            <div style="display:flex; justify-content:space-between; margin-bottom:12px;">
+                <span style="font-size:11px; color:#7f8c8d; font-weight:800;">${waktuTampil}</span>
+                <span style="font-size:11px; font-weight:800; color:${warnaStatus}; text-transform:uppercase; padding:3px 8px; border-radius:12px; border:1px solid ${warnaStatus}40; background:${warnaStatus}10;">${status}</span>
+            </div>
+            <div class="card-title" style="font-size: 16px;">${order.layanan || "Layanan Tidak Diketahui"}</div>
+            <div class="card-detail">🏙️ Kota: <b>${order.kota || "⚠️ Tidak diketahui (order lama/gagal geocode)"}</b></div>
+            <div class="card-detail">👤 Cust: ${order.customer_nama || "Tanpa Nama"} (<a href="https://wa.me/62${customerWa.substring(1)}" target="_blank" style="color:#2980b9; text-decoration:none;">${customerWa}</a>)</div>
+            <div class="card-detail">🛵 Driver: <b>${order.driver_nama || "Belum ada"}</b> ${order.rating ? " (⭐" + order.rating + ")" : ""}</div>
+            ${blokBiayaLayanan}
+            <div class="card-detail" style="margin-top:12px; background:#f8f9fa; padding:10px; border-radius:6px; border:1px solid #eee;">
+                ${order.detail_1 || "-"} <br><span style="color:#bdc3c7;">⬇</span><br> ${order.detail_2 || "-"}
+            </div>
+            ${order.catatan ? `<div class="card-detail" style="margin-top:8px; color:#d35400; font-weight:700; background:#fff3e0; padding:8px; border-radius:6px;">📝 Catatan: ${order.catatan}</div>` : ""}
+
+            ${blokUlasan}
+            ${blokPeringatanMacet}
+
+            ${tombolAksi ? `<div class="action-btns">${tombolAksi}</div>` : ""}
+            <div style="margin-top:10px; text-align:right;">
+                <button class="btn-hapus" onclick="hapusOrder('${order.id}')">🗑️ Hapus Data Lama</button>
+            </div>
+        `;
+  return kartu;
+}
+
+window.exportToCSV = function () {
+  if (state.allOrdersData.length === 0) return alert("Belum ada data pesanan untuk di-download.");
+
+  let csv = "Tanggal & Waktu,Kota,Layanan,Status,Nama Customer,WA Customer,Nama Driver,Detail 1 (Penjemputan),Detail 2 (Tujuan),Catatan,Bintang (Rating),Ulasan\n";
+
+  state.allOrdersData.forEach((order) => {
+    let waktu = order.waktu_order || "";
+    if (order.timestamp) {
+      const tanggal = new Date(order.timestamp);
+      waktu = tanggal.toLocaleDateString("id-ID") + " " + tanggal.toLocaleTimeString("id-ID");
+    }
+    const kolom = (v) => `"${(v || "").toString().replace(/"/g, '""')}"`;
+    csv += `${waktu},${kolom(order.kota)},${kolom(order.layanan)},${kolom(order.status)},${kolom(order.customer_nama)},${kolom(order.customer_wa)},${kolom(order.driver_nama)},${kolom(order.detail_1)},${kolom(order.detail_2)},${kolom(order.catatan)},${order.rating || ""},${kolom(order.ulasan)}\n`;
+  });
+
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const link = document.createElement("a");
+  const url = URL.createObjectURL(blob);
+  link.setAttribute("href", url);
+  link.setAttribute("download", "Laporan_TTG_" + new Date().toLocaleDateString("id-ID") + ".csv");
+  link.style.visibility = "hidden";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
+
+window.hapusOrder = function (orderId) {
+  if (!confirm("Yakin hapus data pesanan ini secara permanen?")) return;
+  remove(ref(database, `orders/${orderId}`)).catch((err) => alert("Gagal hapus: " + err));
+};
+
+window.batalkanPaksaOrder = function (orderId) {
+  const order = state.allOrdersData.find((o) => o.id === orderId);
+  if (!order) return;
+
+  const alasan = prompt("Alasan pembatalan paksa (opsional, misal: driver hilang kontak):") || "";
+  if (!confirm("Batalkan paksa pesanan ini? Tindakan ini untuk order yang macet/tidak ada progres.")) return;
+
+  update(ref(database, `orders/${orderId}`), { status: "batal", alasan_batal_admin: alasan })
+    .then(() => {
+      if (order.status === "diambil" && order.driver_wa) {
+        const pengembalian = BIAYA_PLATFORM + (order.biaya_layanan_jasa || 0);
+        const driver = state.allDriversData.find((d) => d.wa === order.driver_wa);
+        const saldoSaatIni = (driver && driver.saldo) || 0;
+        update(ref(database, `drivers/${order.driver_wa}`), { saldo: saldoSaatIni + pengembalian }).catch((err) =>
+          alert("Order dibatalkan, tapi gagal mengembalikan saldo driver: " + err)
+        );
+      }
+      alert("Pesanan dibatalkan paksa.");
+    })
+    .catch((err) => alert("Gagal: " + err));
+};
+
+window.paksaSelesaikanOrder = function (orderId) {
+  const order = state.allOrdersData.find((o) => o.id === orderId);
+  if (!order) return;
+
+  const biayaMakanan = order.biaya_layanan_makanan || 0;
+  let pesanKonfirmasi = "Tandai pesanan ini selesai secara paksa?";
+  if (biayaMakanan > 0 && order.driver_wa) {
+    pesanKonfirmasi += `\n\nSaldo driver akan otomatis terpotong Rp ${biayaMakanan.toLocaleString("id-ID")} (biaya layanan makanan).`;
+  }
+  if (!confirm(pesanKonfirmasi)) return;
+
+  update(ref(database, `orders/${orderId}`), { status: "selesai" })
+    .then(() => {
+      if (biayaMakanan > 0 && order.driver_wa) {
+        const driver = state.allDriversData.find((d) => d.wa === order.driver_wa);
+        const saldoSaatIni = (driver && driver.saldo) || 0;
+        update(ref(database, `drivers/${order.driver_wa}`), { saldo: saldoSaatIni - biayaMakanan }).catch((err) =>
+          alert("Order ditandai selesai, tapi gagal memotong saldo driver: " + err)
+        );
+      }
+      alert("Pesanan ditandai selesai.");
+    })
+    .catch((err) => alert("Gagal: " + err));
+};
