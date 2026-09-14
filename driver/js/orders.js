@@ -1,1 +1,368 @@
-import{ref as a,onValue as t,update as i,runTransaction as n,push as e,query as s,orderByChild as r,equalTo as o}from"https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";import{database as c}from"./config.js";import{state as d}from"./state.js";import{langDict as l}from"./i18n.js";import{hitungTotalPotonganAmbil as u,renderRiwayatSaldo as m}from"./wallet.js";import{pantauUnreadChat as v}from"./chat.js";import{tambahOrderDilacak as p,hapusOrderDilacak as b}from"./live-location.js";import{daftarkanOrderUntukGeofence as k,hapusOrderDariGeofence as $}from"./geofencing.js";import{hitungPotonganBpjs as g,tambahTabunganBpjs as f,batalkanTabunganBpjs as _}from"./bpjs.js";export function pantauOrderanMasuk(){const n=s(a(c,"orders"),r("kota"),o(d.kotaDriverAktif));t(n,t=>{const n=[];t.forEach(a=>{const t=a.val();t.id=a.key,n.push(t)}),n.reverse(),d.latestOrdersData=n,function(t){t.forEach(t=>{if(t.driver_nama!==d.namaDriverAktif)return;if("diambil"!==t.status||!t.minta_batal_customer)return;if(d.batalOtomatisDiproses.has(t.id))return;const n=t.waktu_diambil||0;if(n&&Date.now()-n<=9e4){d.batalOtomatisDiproses.add(t.id);const n=u(t);i(a(c,"orders/"+t.id),{status:"batal_cust",minta_batal_customer:!1}).then(()=>{i(a(c,`drivers/${d.waDriverAktif}`),{saldo:d.saldoDriverAktif+n})}).catch(()=>{d.batalOtomatisDiproses.delete(t.id)})}})}(n);try{renderOrdersUI(),m(),document.getElementById("page-history").classList.contains("hidden")||renderRiwayatDriver()}catch(a){}})}function h(a){if(!a.items)return"";const t=Object.values(a.items).map(a=>`<div class="oc-food-item-row"><div><span>${a.qty}x ${a.nama}</span>${a.opsi_text?`<div style="font-size:10.5px; color:var(--text3); font-weight:600; margin-top:1px;">${a.opsi_text}</div>`:""}</div><span>${(a.harga*a.qty).toLocaleString("id-ID")}</span></div>`).join("");return`<div class="oc-food-box">\n        <div class="oc-food-resto">🍜 Jemput di: ${a.resto_nama||"-"}</div>\n        ${t}\n        <div class="oc-food-subtotal-row"><span>Subtotal Makanan</span><span>Rp ${(a.subtotal_makanan||0).toLocaleString("id-ID")}</span></div>\n        <div class="oc-food-subtotal-row"><span>Biaya Layanan (app)</span><span>Rp ${(a.biaya_layanan_makanan||0).toLocaleString("id-ID")}</span></div>\n        <div class="oc-food-cod-note">💵 Bayar tunai ke resto Rp ${(a.subtotal_makanan||0).toLocaleString("id-ID")} saat ambil (harga asli resto). Lalu tagih customer Rp ${((a.subtotal_makanan||0)+(a.biaya_layanan_makanan||0)+(a.estimasi_ongkos||0)).toLocaleString("id-ID")} saat antar.</div>\n    </div>`}function w(a){return(a.estimasi_ongkos||0)+(a.biaya_layanan_jasa||0)}export function renderOrdersUI(){if(""===d.namaDriverAktif)return;const a=l[d.currentLang],t=document.getElementById("listOrderan"),i=document.getElementById("listOrderanAktif");if(!t||!i)return;t.innerHTML="",i.innerHTML="";let n=!1,e=!1,s=!1,r=0,o=0;if(d.latestOrdersData.forEach(c=>{if(c.driver_nama===d.namaDriverAktif&&("selesai"===c.status&&o++,"diambil"===c.status&&r++),"diambil"===c.status&&c.driver_nama===d.namaDriverAktif){e=!0,v(c.id),p(c.id),k(c);const t=document.createElement("div");t.className="order-card order-card-active",t.innerHTML=`\n                <div class="oc-header"><span class="oc-badge oc-badge-active">${a.badgeAktif}</span><span class="oc-time">⏱️ ${c.waktu_order||""}</span></div>\n                <div class="oc-body">\n                    <div class="oc-customer"><div class="oc-cust-avatar">👤</div><div><div class="oc-cust-name">${c.customer_nama||""}</div><div class="oc-cust-wa">${c.layanan||""}</div></div></div>\n                    <div class="oc-route"><div class="oc-route-row"><div class="oc-route-icon" style="background:#DBEAFE;">📍</div><div><div class="oc-route-label">${a.lblDet1}</div><div class="oc-route-val">${c.detail_1||""}</div></div></div><div class="oc-route-row"><div class="oc-route-icon" style="background:#D1FAE5;">🏁</div><div><div class="oc-route-label">${a.lblDet2}</div><div class="oc-route-val">${c.detail_2||""}</div></div></div></div>\n                    ${c.jarak_km?`<div class="oc-jarak-ongkos"><span>📏 ${c.jarak_km} km${c.durasi_menit?" · ⏱️ ~"+c.durasi_menit+" mnt":""}</span><span class="oc-jo-harga">💰 Rp ${w(c).toLocaleString("id-ID")}</span></div>`:""}\n                    ${h(c)}\n                    ${c.catatan?`<div class="oc-note">📝 ${a.lblNote}: ${c.catatan}</div>`:""}\n                    ${c.minta_batal_customer?`\n                    <div class="oc-note" style="background:#FEF2F2;border-color:#FCA5A5;color:#991B1B;">⚠️ Customer mengajukan pembatalan. ACC kalau memang berhalangan/salah pesan, atau Tolak kalau kamu sudah otw/dekat lokasi.</div>\n                    <div class="action-grid">\n                        <button class="btn-cancel-order" onclick="tolakPembatalanCustomer('${c.id}')">✕ Tolak</button>\n                        <button class="btn-complete-order" onclick="setujuiPembatalanCustomer('${c.id}')">✓ ACC Batal</button>\n                    </div>\n                    `:`\n                    <div class="oc-note-bottom">${a.noteAktif}</div>\n                    <button class="btn-wa-chat btn-chat-cust" id="btnChat-${c.id}" onclick="bukaChat('${c.id}','${(c.customer_nama||"Customer").replace(/'/g,"\\'")}')">${a.btnWa}<span class="chat-unread-dot"></span></button>\n                    ${c.izin_wa_customer?`<button class="btn-wa-chat" style="background:#ECFDF5;color:#15803D;border-color:#86EFAC;margin-top:6px;" onclick="chatUlang('${c.customer_wa}')">${a.btnWaCust}</button>`:`<div class="oc-note-bottom" style="opacity:0.75;">${a.noIzinWa}</div>`}\n                    ${c.resto_id?`<button class="btn-wa-chat" style="background:#FFF3E0;color:#E65100;border-color:#FFCC80;" onclick="chatUlang('${c.resto_id}')">${a.btnWaResto}</button>`:""}\n                    ${c.pickup_lat&&c.pickup_lng?`<button class="btn-wa-chat" style="background:#E8F5E9;color:#1B5E20;border-color:#A5D6A7;margin-top:6px;" onclick="bukaPetaOrderan('${c.pickup_lat}','${c.pickup_lng}','${c.dropoff_lat||""}','${c.dropoff_lng||""}','${(c.detail_1||"").replace(/'/g,"")}','${(c.detail_2||"").replace(/'/g,"")}')">🗺️ Lihat Peta & Navigasi</button>`:""}\n                    <div class="action-grid"><button class="btn-cancel-order" onclick="batalAmbilOrderan('${c.id}')">${a.btnCancelOrder}</button><button class="btn-complete-order" onclick="selesaikanOrderanDriver('${c.id}')">${a.btnCompleteOrder}</button></div>\n                    `}\n                </div>`,i.appendChild(t)}if("terbuka"===c.status||"diterima_resto"===c.status){n=!0,d.orderYangSudahBunyi.has(c.id)||(d.orderYangSudahBunyi.add(c.id),s=!0,document.hidden&&"granted"===Notification.permission&&new Notification(`${a.toastNewOrderTitle||"🛵 Orderan Baru!"} — TulangTulung`,{body:`${c.customer_nama||""} ${a.toastNewOrderDesc||"butuh driver untuk"} ${c.layanan||""}.`,icon:"/logo-driver.png",tag:"driver-new-order-"+c.id}));const i=document.createElement("div");i.className="order-card order-card-new",i.innerHTML=`\n                <div class="oc-header"><span class="oc-badge oc-badge-new">${c.layanan||""}</span><span class="oc-time">⏱️ ${c.waktu_order||""}</span></div>\n                <div class="oc-body">\n                    <div class="oc-customer"><div class="oc-cust-avatar">👤</div><div><div class="oc-cust-name">${c.customer_nama||""}</div><div class="oc-cust-wa">${a.lblCust}</div></div></div>\n                    <div class="oc-route"><div class="oc-route-row"><div class="oc-route-icon" style="background:#FEF9E7;">📍</div><div><div class="oc-route-label">${a.lblDet1}</div><div class="oc-route-val">${c.detail_1||""}</div></div></div><div class="oc-route-row"><div class="oc-route-icon" style="background:#D1FAE5;">🏁</div><div><div class="oc-route-label">${a.lblDet2}</div><div class="oc-route-val">${c.detail_2||""}</div></div></div></div>\n                    ${c.jarak_km?`<div class="oc-jarak-ongkos"><span>📏 ${c.jarak_km} km${c.durasi_menit?" · ⏱️ ~"+c.durasi_menit+" mnt":""}</span><span class="oc-jo-harga">💰 Rp ${w(c).toLocaleString("id-ID")}</span></div>`:""}\n                    ${h(c)}\n                    ${c.catatan?`<div class="oc-note">📝 ${a.lblNote}: ${c.catatan}</div>`:""}\n                    ${c.pickup_lat&&c.pickup_lng?`<button class="btn-wa-chat" style="background:#E3F2FD;color:#0D47A1;border-color:#90CAF9;margin-bottom:6px;" onclick="bukaPetaOrderan('${c.pickup_lat}','${c.pickup_lng}','${c.dropoff_lat||""}','${c.dropoff_lng||""}','${(c.detail_1||"").replace(/'/g,"")}','${(c.detail_2||"").replace(/'/g,"")}')">🗺️ Preview Peta</button>`:""}\n                    <button class="btn-ambil" onclick="ambilOrderan('${c.id}','${c.customer_wa}','${c.customer_nama}')">${a.btnAmbil}</button>\n                </div>`,t.appendChild(i)}}),document.getElementById("statJalan").innerText=r,document.getElementById("statSelesai").innerText=o,s){const a=document.getElementById("suaraNotif");a.currentTime=0,a.play().catch(()=>{})}n||(t.innerHTML=`<div class="empty-state"><span class="empty-icon">☕</span><div class="empty-title">${a.emptyRadar.replace("<br>"," ")}</div></div>`),e||(i.innerHTML=`<div class="empty-state"><span class="empty-icon">📭</span><div class="empty-title">${a.emptyAktif}</div></div>`)}window.toggleHistory=function(a){const t=document.getElementById("hist-det-"+a),i=document.getElementById("hist-btn-"+a),n=l[d.currentLang];t.classList.contains("show")?(t.classList.remove("show"),i.innerHTML=n.btnDetail):(t.classList.add("show"),i.innerHTML=n.btnTutupDetail)};export function renderRiwayatDriver(){const a=l[d.currentLang],t=document.getElementById("listHistoryDriver");t.innerHTML="";let i=0,n=0,e=!1;d.latestOrdersData.forEach(s=>{if(s.driver_nama!==d.namaDriverAktif)return;if("selesai"!==s.status&&"diambil"!==s.status)return;e=!0,s.rating&&(i+=parseInt(s.rating),n++);const r="selesai"===s.status?"hc-pill-done":"hc-pill-ongoing",o="selesai"===s.status?a.pillDone:a.pillOngoing,c=s.rating?`<div class="hc-rating">⭐ ${s.rating} ${a.starTxt} ${s.ulasan?` · "${s.ulasan}"`:""}</div>`:"selesai"===s.status?`<div class="hc-no-rating">${a.noRating||""}</div>`:"",l=document.createElement("div");l.className="hist-card",l.innerHTML=`\n            <div class="hc-top"><div class="hc-service">${s.layanan||""}</div><div class="hc-time">${s.waktu_order||""}</div></div>\n            <span class="hc-pill ${r}">${o}</span>\n            <div class="hc-customer">${a.histCust} ${s.customer_nama||""}</div>\n            <button class="hc-toggle-btn" id="hist-btn-${s.id}" onclick="toggleHistory('${s.id}')">${a.btnDetail}</button>\n            <div class="hc-details" id="hist-det-${s.id}">\n                <div class="hc-route-box">${s.detail_1||""}<br>⬇<br>${s.detail_2||""}</div>\n                ${s.jarak_km?`<div class="oc-jarak-ongkos" style="margin-top:8px;"><span>📏 ${s.jarak_km} km${s.durasi_menit?" · ⏱️ ~"+s.durasi_menit+" mnt":""}</span><span class="oc-jo-harga">💰 Rp ${w(s).toLocaleString("id-ID")}</span></div>`:""}\n                ${c}\n            </div>`,t.appendChild(l)}),document.getElementById("avgRatingDisplay").innerText=n>0?(i/n).toFixed(1):"0.0",e||(t.innerHTML=`<div class="empty-state"><span class="empty-icon">📭</span><div class="empty-title">${a.emptyHistory}</div></div>`)}window.chatUlang=function(a){window.open(`https://wa.me/${function(a){const t=String(a||"").replace(/\D/g,"");return t.startsWith("0")?"62"+t.slice(1):t.startsWith("62")?t:"62"+t}(a)}`,"_blank")},window.ambilOrderan=function(t,s,r){const o=l[d.currentLang],m=d.latestOrdersData.find(a=>a.id===t),v=u(m),b=g(d.ikutBpjsAktif),k=v+b;d.saldoDriverAktif<k?alert(o.alertSaldoHabis):n(a(c,"orders/"+t),a=>{if(a&&("terbuka"===a.status||"diterima_resto"===a.status))return a.status="diambil",a.driver_nama=d.namaDriverAktif,a.driver_wa=d.waDriverAktif,a.waktu_diambil=Date.now(),a.bpjs_potongan=b,a}).then(n=>{n.committed?(i(a(c,`drivers/${d.waDriverAktif}`),{saldo:d.saldoDriverAktif-k}),b>0&&f(d.waDriverAktif,d.tabunganBpjsAktif,b),alert(o.alertSuccess.replace(/Rp\s?1[.,]000/,"Rp "+k.toLocaleString("id-ID"))),e(a(c,`chats/${t}`),{from:"driver",nama:d.namaDriverAktif,teks:`${o.waTemplate1}${r}${o.waTemplate2}${d.namaDriverAktif}${o.waTemplate3}`,waktu:Date.now()}),p(t)):alert(o.alertLate)}).catch(a=>alert("Error: "+a))},window.batalAmbilOrderan=function(t){const n=l[d.currentLang],e=d.latestOrdersData.find(a=>a.id===t),s=u(e),r=e?.bpjs_potongan||0,o=s+r;if(confirm(n.alertCancelConf.replace(/Rp\s?1[.,]000/,"Rp "+o.toLocaleString("id-ID")))){const s=e&&e.resto_id?"diterima_resto":"terbuka";i(a(c,"orders/"+t),{status:s,driver_nama:""}).then(()=>{i(a(c,`drivers/${d.waDriverAktif}`),{saldo:d.saldoDriverAktif+o}),r>0&&_(d.waDriverAktif,d.tabunganBpjsAktif,r),alert(n.alertCancelSucc),b(t),$(t)}).catch(a=>alert("Error: "+a))}},window.selesaikanOrderanDriver=function(t){const n=l[d.currentLang];confirm(n.alertCompleteConf)&&i(a(c,"orders/"+t),{status:"selesai"}).then(()=>{b(t),$(t)})},window.setujuiPembatalanCustomer=function(t){const n=d.latestOrdersData.find(a=>a.id===t),e=u(n),s=n?.bpjs_potongan||0,r=e+s;confirm(`ACC pembatalan? Saldo Rp${r.toLocaleString("id-ID")} yang terpotong akan dikembalikan ke saldo kamu.`)&&i(a(c,"orders/"+t),{status:"batal_cust",minta_batal_customer:!1}).then(()=>{i(a(c,`drivers/${d.waDriverAktif}`),{saldo:d.saldoDriverAktif+r}),s>0&&_(d.waDriverAktif,d.tabunganBpjsAktif,s),b(t),$(t)}).catch(a=>alert("Error: "+a))},window.tolakPembatalanCustomer=function(t){confirm("Tolak permintaan pembatalan ini? Orderan akan tetap berjalan.")&&i(a(c,"orders/"+t),{minta_batal_customer:!1}).catch(a=>alert("Error: "+a))};
+import {
+  ref,
+  onValue,
+  update,
+  runTransaction,
+  push,
+  query,
+  orderByChild,
+  equalTo,
+  limitToLast,
+} from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
+import { database } from "./config.js";
+import { state } from "./state.js";
+import { langDict } from "./i18n.js";
+import { hitungTotalPotonganAmbil, renderRiwayatSaldo } from "./wallet.js";
+import { pantauUnreadChat } from "./chat.js";
+import { tambahOrderDilacak, hapusOrderDilacak } from "./live-location.js";
+import { daftarkanOrderUntukGeofence, hapusOrderDariGeofence } from "./geofencing.js";
+import { hitungPotonganBpjs, tambahTabunganBpjs, batalkanTabunganBpjs } from "./bpjs.js";
+
+const BATAS_ORDER_PER_KOTA = 500;
+
+export function pantauOrderanMasuk() {
+  const ordersQuery = query(
+    ref(database, "orders"),
+    orderByChild("kota"),
+    equalTo(state.kotaDriverAktif),
+    limitToLast(BATAS_ORDER_PER_KOTA)
+  );
+
+  onValue(ordersQuery, (snapshot) => {
+    const daftar = [];
+    snapshot.forEach((child) => {
+      const order = child.val();
+      order.id = child.key;
+      daftar.push(order);
+    });
+    daftar.reverse();
+    state.latestOrdersData = daftar;
+
+    prosesPembatalanOtomatis(daftar);
+
+    try {
+      renderOrdersUI();
+      renderRiwayatSaldo();
+      if (!document.getElementById("page-history").classList.contains("hidden")) {
+        renderRiwayatDriver();
+      }
+    } catch (err) {
+      console.error("Gagal render data orderan:", err);
+    }
+  });
+}
+
+function prosesPembatalanOtomatis(daftarOrder) {
+  daftarOrder.forEach((order) => {
+    if (order.driver_nama !== state.namaDriverAktif) return;
+    if (order.status !== "diambil" || !order.minta_batal_customer) return;
+    if (state.batalOtomatisDiproses.has(order.id)) return;
+
+    const waktuDiambil = order.waktu_diambil || 0;
+    if (waktuDiambil && Date.now() - waktuDiambil <= 90000) {
+      state.batalOtomatisDiproses.add(order.id);
+      const pengembalian = hitungTotalPotonganAmbil(order);
+      update(ref(database, "orders/" + order.id), { status: "batal_cust", minta_batal_customer: false })
+        .then(() => {
+          update(ref(database, `drivers/${state.waDriverAktif}`), { saldo: state.saldoDriverAktif + pengembalian });
+        })
+        .catch(() => {
+          state.batalOtomatisDiproses.delete(order.id);
+        });
+    }
+  });
+}
+
+function renderBoxMakanan(order) {
+  if (!order.items) return "";
+  const baris = Object.values(order.items)
+    .map(
+      (item) => `<div class="oc-food-item-row"><div><span>${item.qty}x ${item.nama}</span>${item.opsi_text ? `<div style="font-size:10.5px; color:var(--text3); font-weight:600; margin-top:1px;">${item.opsi_text}</div>` : ""}</div><span>${(item.harga * item.qty).toLocaleString("id-ID")}</span></div>`
+    )
+    .join("");
+  return `<div class="oc-food-box">
+        <div class="oc-food-resto">🍜 Jemput di: ${order.resto_nama || "-"}</div>
+        ${baris}
+        <div class="oc-food-subtotal-row"><span>Subtotal Makanan</span><span>Rp ${(order.subtotal_makanan || 0).toLocaleString("id-ID")}</span></div>
+        <div class="oc-food-subtotal-row"><span>Biaya Layanan (app)</span><span>Rp ${(order.biaya_layanan_makanan || 0).toLocaleString("id-ID")}</span></div>
+        <div class="oc-food-cod-note">💵 Bayar tunai ke resto Rp ${(order.subtotal_makanan || 0).toLocaleString("id-ID")} saat ambil (harga asli resto). Lalu tagih customer Rp ${((order.subtotal_makanan || 0) + (order.biaya_layanan_makanan || 0) + (order.estimasi_ongkos || 0)).toLocaleString("id-ID")} saat antar.</div>
+    </div>`;
+}
+
+function hitungOngkos(order) {
+  return (order.estimasi_ongkos || 0) + (order.biaya_layanan_jasa || 0);
+}
+
+export function renderOrdersUI() {
+  if (state.namaDriverAktif === "") return;
+  const teks = langDict[state.currentLang];
+  const listRadar = document.getElementById("listOrderan");
+  const listAktif = document.getElementById("listOrderanAktif");
+  if (!listRadar || !listAktif) return;
+
+  listRadar.innerHTML = "";
+  listAktif.innerHTML = "";
+
+  let adaOrderBaru = false;
+  let adaOrderAktif = false;
+  let mainkanSuara = false;
+  let statJalan = 0;
+  let statSelesai = 0;
+
+  state.latestOrdersData.forEach((order) => {
+    if (order.driver_nama === state.namaDriverAktif) {
+      if (order.status === "selesai") statSelesai++;
+      if (order.status === "diambil") statJalan++;
+    }
+
+    if (order.status === "diambil" && order.driver_nama === state.namaDriverAktif) {
+      adaOrderAktif = true;
+      pantauUnreadChat(order.id);
+      tambahOrderDilacak(order.id);
+      daftarkanOrderUntukGeofence(order);
+
+      const kartu = document.createElement("div");
+      kartu.className = "order-card order-card-active";
+      kartu.innerHTML = `
+                <div class="oc-header"><span class="oc-badge oc-badge-active">${teks.badgeAktif}</span><span class="oc-time">⏱️ ${order.waktu_order || ""}</span></div>
+                <div class="oc-body">
+                    <div class="oc-customer"><div class="oc-cust-avatar">👤</div><div><div class="oc-cust-name">${order.customer_nama || ""}</div><div class="oc-cust-wa">${order.layanan || ""}</div></div></div>
+                    <div class="oc-route"><div class="oc-route-row"><div class="oc-route-icon" style="background:#DBEAFE;">📍</div><div><div class="oc-route-label">${teks.lblDet1}</div><div class="oc-route-val">${order.detail_1 || ""}</div></div></div><div class="oc-route-row"><div class="oc-route-icon" style="background:#D1FAE5;">🏁</div><div><div class="oc-route-label">${teks.lblDet2}</div><div class="oc-route-val">${order.detail_2 || ""}</div></div></div></div>
+                    ${order.jarak_km ? `<div class="oc-jarak-ongkos"><span>📏 ${order.jarak_km} km${order.durasi_menit ? " · ⏱️ ~" + order.durasi_menit + " mnt" : ""}</span><span class="oc-jo-harga">💰 Rp ${hitungOngkos(order).toLocaleString("id-ID")}</span></div>` : ""}
+                    ${renderBoxMakanan(order)}
+                    ${order.catatan ? `<div class="oc-note">📝 ${teks.lblNote}: ${order.catatan}</div>` : ""}
+                    ${
+                      order.minta_batal_customer
+                        ? `
+                    <div class="oc-note" style="background:#FEF2F2;border-color:#FCA5A5;color:#991B1B;">⚠️ Customer mengajukan pembatalan. ACC kalau memang berhalangan/salah pesan, atau Tolak kalau kamu sudah otw/dekat lokasi.</div>
+                    <div class="action-grid">
+                        <button class="btn-cancel-order" onclick="tolakPembatalanCustomer('${order.id}')">✕ Tolak</button>
+                        <button class="btn-complete-order" onclick="setujuiPembatalanCustomer('${order.id}')">✓ ACC Batal</button>
+                    </div>
+                    `
+                        : `
+                    <div class="oc-note-bottom">${teks.noteAktif}</div>
+                    <button class="btn-wa-chat btn-chat-cust" id="btnChat-${order.id}" onclick="bukaChat('${order.id}','${(order.customer_nama || "Customer").replace(/'/g, "\\'")}')">${teks.btnWa}<span class="chat-unread-dot"></span></button>
+                    ${order.izin_wa_customer ? `<button class="btn-wa-chat" style="background:#ECFDF5;color:#15803D;border-color:#86EFAC;margin-top:6px;" onclick="chatUlang('${order.customer_wa}')">${teks.btnWaCust}</button>` : `<div class="oc-note-bottom" style="opacity:0.75;">${teks.noIzinWa}</div>`}
+                    ${order.resto_id ? `<button class="btn-wa-chat" style="background:#FFF3E0;color:#E65100;border-color:#FFCC80;" onclick="chatUlang('${order.resto_id}')">${teks.btnWaResto}</button>` : ""}
+                    ${order.pickup_lat && order.pickup_lng ? `<button class="btn-wa-chat" style="background:#E8F5E9;color:#1B5E20;border-color:#A5D6A7;margin-top:6px;" onclick="bukaPetaOrderan('${order.pickup_lat}','${order.pickup_lng}','${order.dropoff_lat || ""}','${order.dropoff_lng || ""}','${(order.detail_1 || "").replace(/'/g, "")}','${(order.detail_2 || "").replace(/'/g, "")}')">🗺️ Lihat Peta & Navigasi</button>` : ""}
+                    <div class="action-grid"><button class="btn-cancel-order" onclick="batalAmbilOrderan('${order.id}')">${teks.btnCancelOrder}</button><button class="btn-complete-order" onclick="selesaikanOrderanDriver('${order.id}')">${teks.btnCompleteOrder}</button></div>
+                    `
+                    }
+                </div>`;
+      listAktif.appendChild(kartu);
+    }
+
+    if (order.status === "terbuka" || order.status === "diterima_resto") {
+      adaOrderBaru = true;
+      if (!state.orderYangSudahBunyi.has(order.id)) {
+        state.orderYangSudahBunyi.add(order.id);
+        mainkanSuara = true;
+        if (document.hidden && Notification.permission === "granted") {
+          new Notification(`${teks.toastNewOrderTitle || "🛵 Orderan Baru!"} — TulangTulung`, {
+            body: `${order.customer_nama || ""} ${teks.toastNewOrderDesc || "butuh driver untuk"} ${order.layanan || ""}.`,
+            icon: "/logo-driver.png",
+            tag: "driver-new-order-" + order.id,
+          });
+        }
+      }
+
+      const kartu = document.createElement("div");
+      kartu.className = "order-card order-card-new";
+      kartu.innerHTML = `
+                <div class="oc-header"><span class="oc-badge oc-badge-new">${order.layanan || ""}</span><span class="oc-time">⏱️ ${order.waktu_order || ""}</span></div>
+                <div class="oc-body">
+                    <div class="oc-customer"><div class="oc-cust-avatar">👤</div><div><div class="oc-cust-name">${order.customer_nama || ""}</div><div class="oc-cust-wa">${teks.lblCust}</div></div></div>
+                    <div class="oc-route"><div class="oc-route-row"><div class="oc-route-icon" style="background:#FEF9E7;">📍</div><div><div class="oc-route-label">${teks.lblDet1}</div><div class="oc-route-val">${order.detail_1 || ""}</div></div></div><div class="oc-route-row"><div class="oc-route-icon" style="background:#D1FAE5;">🏁</div><div><div class="oc-route-label">${teks.lblDet2}</div><div class="oc-route-val">${order.detail_2 || ""}</div></div></div></div>
+                    ${order.jarak_km ? `<div class="oc-jarak-ongkos"><span>📏 ${order.jarak_km} km${order.durasi_menit ? " · ⏱️ ~" + order.durasi_menit + " mnt" : ""}</span><span class="oc-jo-harga">💰 Rp ${hitungOngkos(order).toLocaleString("id-ID")}</span></div>` : ""}
+                    ${renderBoxMakanan(order)}
+                    ${order.catatan ? `<div class="oc-note">📝 ${teks.lblNote}: ${order.catatan}</div>` : ""}
+                    ${order.pickup_lat && order.pickup_lng ? `<button class="btn-wa-chat" style="background:#E3F2FD;color:#0D47A1;border-color:#90CAF9;margin-bottom:6px;" onclick="bukaPetaOrderan('${order.pickup_lat}','${order.pickup_lng}','${order.dropoff_lat || ""}','${order.dropoff_lng || ""}','${(order.detail_1 || "").replace(/'/g, "")}','${(order.detail_2 || "").replace(/'/g, "")}')">🗺️ Preview Peta</button>` : ""}
+                    <button class="btn-ambil" onclick="ambilOrderan('${order.id}','${order.customer_wa}','${order.customer_nama}')">${teks.btnAmbil}</button>
+                </div>`;
+      listRadar.appendChild(kartu);
+    }
+  });
+
+  document.getElementById("statJalan").innerText = statJalan;
+  document.getElementById("statSelesai").innerText = statSelesai;
+
+  if (mainkanSuara) {
+    const audio = document.getElementById("suaraNotif");
+    audio.currentTime = 0;
+    audio.play().catch(() => {});
+  }
+
+  if (!adaOrderBaru) {
+    listRadar.innerHTML = `<div class="empty-state"><span class="empty-icon">☕</span><div class="empty-title">${teks.emptyRadar.replace("<br>", " ")}</div></div>`;
+  }
+  if (!adaOrderAktif) {
+    listAktif.innerHTML = `<div class="empty-state"><span class="empty-icon">📭</span><div class="empty-title">${teks.emptyAktif}</div></div>`;
+  }
+}
+
+window.toggleHistory = function (id) {
+  const detail = document.getElementById("hist-det-" + id);
+  const tombol = document.getElementById("hist-btn-" + id);
+  const teks = langDict[state.currentLang];
+  if (detail.classList.contains("show")) {
+    detail.classList.remove("show");
+    tombol.innerHTML = teks.btnDetail;
+  } else {
+    detail.classList.add("show");
+    tombol.innerHTML = teks.btnTutupDetail;
+  }
+};
+
+export function renderRiwayatDriver() {
+  const teks = langDict[state.currentLang];
+  const listEl = document.getElementById("listHistoryDriver");
+  listEl.innerHTML = "";
+
+  let totalRating = 0;
+  let jumlahRating = 0;
+  let adaRiwayat = false;
+
+  state.latestOrdersData.forEach((order) => {
+    if (order.driver_nama !== state.namaDriverAktif) return;
+    if (order.status !== "selesai" && order.status !== "diambil") return;
+
+    adaRiwayat = true;
+    if (order.rating) {
+      totalRating += parseInt(order.rating);
+      jumlahRating++;
+    }
+
+    const kelasPill = order.status === "selesai" ? "hc-pill-done" : "hc-pill-ongoing";
+    const labelPill = order.status === "selesai" ? teks.pillDone : teks.pillOngoing;
+    const blokRating = order.rating
+      ? `<div class="hc-rating">⭐ ${order.rating} ${teks.starTxt} ${order.ulasan ? ` · "${order.ulasan}"` : ""}</div>`
+      : order.status === "selesai"
+        ? `<div class="hc-no-rating">${teks.noRating || ""}</div>`
+        : "";
+
+    const kartu = document.createElement("div");
+    kartu.className = "hist-card";
+    kartu.innerHTML = `
+            <div class="hc-top"><div class="hc-service">${order.layanan || ""}</div><div class="hc-time">${order.waktu_order || ""}</div></div>
+            <span class="hc-pill ${kelasPill}">${labelPill}</span>
+            <div class="hc-customer">${teks.histCust} ${order.customer_nama || ""}</div>
+            <button class="hc-toggle-btn" id="hist-btn-${order.id}" onclick="toggleHistory('${order.id}')">${teks.btnDetail}</button>
+            <div class="hc-details" id="hist-det-${order.id}">
+                <div class="hc-route-box">${order.detail_1 || ""}<br>⬇<br>${order.detail_2 || ""}</div>
+                ${order.jarak_km ? `<div class="oc-jarak-ongkos" style="margin-top:8px;"><span>📏 ${order.jarak_km} km${order.durasi_menit ? " · ⏱️ ~" + order.durasi_menit + " mnt" : ""}</span><span class="oc-jo-harga">💰 Rp ${hitungOngkos(order).toLocaleString("id-ID")}</span></div>` : ""}
+                ${blokRating}
+            </div>`;
+    listEl.appendChild(kartu);
+  });
+
+  document.getElementById("avgRatingDisplay").innerText = jumlahRating > 0 ? (totalRating / jumlahRating).toFixed(1) : "0.0";
+  if (!adaRiwayat) {
+    listEl.innerHTML = `<div class="empty-state"><span class="empty-icon">📭</span><div class="empty-title">${teks.emptyHistory}</div></div>`;
+  }
+}
+
+function formatNomorWa(nomor) {
+  const bersih = String(nomor || "").replace(/\D/g, "");
+  if (bersih.startsWith("0")) return "62" + bersih.slice(1);
+  if (bersih.startsWith("62")) return bersih;
+  return "62" + bersih;
+}
+
+window.chatUlang = function (nomor) {
+  window.open(`https://wa.me/${formatNomorWa(nomor)}`, "_blank");
+};
+
+window.ambilOrderan = function (orderId, customerWa, customerNama) {
+  const teks = langDict[state.currentLang];
+  const order = state.latestOrdersData.find((o) => o.id === orderId);
+  const potonganAmbil = hitungTotalPotonganAmbil(order);
+  const potonganBpjs = hitungPotonganBpjs(state.ikutBpjsAktif);
+  const totalPotongan = potonganAmbil + potonganBpjs;
+
+  if (state.saldoDriverAktif < totalPotongan) {
+    alert(teks.alertSaldoHabis);
+    return;
+  }
+
+  runTransaction(ref(database, "orders/" + orderId), (order) => {
+    if (order && (order.status === "terbuka" || order.status === "diterima_resto")) {
+      order.status = "diambil";
+      order.driver_nama = state.namaDriverAktif;
+      order.driver_wa = state.waDriverAktif;
+      order.waktu_diambil = Date.now();
+      order.bpjs_potongan = potonganBpjs;
+      return order;
+    }
+  })
+    .then((hasil) => {
+      if (hasil.committed) {
+        update(ref(database, `drivers/${state.waDriverAktif}`), { saldo: state.saldoDriverAktif - totalPotongan });
+        if (potonganBpjs > 0) tambahTabunganBpjs(state.waDriverAktif, state.tabunganBpjsAktif, potonganBpjs);
+        alert(teks.alertSuccess.replace(/Rp\s?1[.,]000/, "Rp " + totalPotongan.toLocaleString("id-ID")));
+        push(ref(database, `chats/${orderId}`), {
+          from: "driver",
+          nama: state.namaDriverAktif,
+          teks: `${teks.waTemplate1}${customerNama}${teks.waTemplate2}${state.namaDriverAktif}${teks.waTemplate3}`,
+          waktu: Date.now(),
+        });
+        tambahOrderDilacak(orderId);
+      } else {
+        alert(teks.alertLate);
+      }
+    })
+    .catch((err) => alert("Error: " + err));
+};
+
+window.batalAmbilOrderan = function (orderId) {
+  const teks = langDict[state.currentLang];
+  const order = state.latestOrdersData.find((o) => o.id === orderId);
+  const potonganAmbil = hitungTotalPotonganAmbil(order);
+  const potonganBpjs = order?.bpjs_potongan || 0;
+  const totalPengembalian = potonganAmbil + potonganBpjs;
+
+  if (!confirm(teks.alertCancelConf.replace(/Rp\s?1[.,]000/, "Rp " + totalPengembalian.toLocaleString("id-ID")))) return;
+
+  const statusBaru = order && order.resto_id ? "diterima_resto" : "terbuka";
+  update(ref(database, "orders/" + orderId), { status: statusBaru, driver_nama: "" })
+    .then(() => {
+      update(ref(database, `drivers/${state.waDriverAktif}`), { saldo: state.saldoDriverAktif + totalPengembalian });
+      if (potonganBpjs > 0) batalkanTabunganBpjs(state.waDriverAktif, state.tabunganBpjsAktif, potonganBpjs);
+      alert(teks.alertCancelSucc);
+      hapusOrderDilacak(orderId);
+      hapusOrderDariGeofence(orderId);
+    })
+    .catch((err) => alert("Error: " + err));
+};
+
+window.selesaikanOrderanDriver = function (orderId) {
+  const teks = langDict[state.currentLang];
+  if (!confirm(teks.alertCompleteConf)) return;
+  update(ref(database, "orders/" + orderId), { status: "selesai" }).then(() => {
+    hapusOrderDilacak(orderId);
+    hapusOrderDariGeofence(orderId);
+  });
+};
+
+window.setujuiPembatalanCustomer = function (orderId) {
+  const order = state.latestOrdersData.find((o) => o.id === orderId);
+  const potonganAmbil = hitungTotalPotonganAmbil(order);
+  const potonganBpjs = order?.bpjs_potongan || 0;
+  const totalPengembalian = potonganAmbil + potonganBpjs;
+
+  if (!confirm(`ACC pembatalan? Saldo Rp${totalPengembalian.toLocaleString("id-ID")} yang terpotong akan dikembalikan ke saldo kamu.`)) return;
+
+  update(ref(database, "orders/" + orderId), { status: "batal_cust", minta_batal_customer: false })
+    .then(() => {
+      update(ref(database, `drivers/${state.waDriverAktif}`), { saldo: state.saldoDriverAktif + totalPengembalian });
+      if (potonganBpjs > 0) batalkanTabunganBpjs(state.waDriverAktif, state.tabunganBpjsAktif, potonganBpjs);
+      hapusOrderDilacak(orderId);
+      hapusOrderDariGeofence(orderId);
+    })
+    .catch((err) => alert("Error: " + err));
+};
+
+window.tolakPembatalanCustomer = function (orderId) {
+  if (!confirm("Tolak permintaan pembatalan ini? Orderan akan tetap berjalan.")) return;
+  update(ref(database, "orders/" + orderId), { minta_batal_customer: false }).catch((err) => alert("Error: " + err));
+};
