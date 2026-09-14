@@ -1,1 +1,149 @@
-import{ref as a,onValue as t,update as e}from"https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";import{database as n}from"./config.js";import{state as s}from"./state.js";import{showFloatingNotifResto as o}from"./notifications.js";const i=new Set;let r=!0;export function pantauPesananResto(){t(a(n,"orders"),a=>{const t=[];a.forEach(a=>{let e=a.val();e.id=a.key,e.resto_id===s.waRestoAktif&&t.push(e)}),t.reverse(),s.latestOrdersResto=t,t.forEach(a=>{if("menunggu_resto"===a.status&&!i.has(a.id)&&(i.add(a.id),!r)){const t=document.getElementById("suaraNotifResto");t&&(t.currentTime=0,t.play().catch(()=>{})),o("🍽️ Pesanan Baru Masuk!",`${a.customer_nama||"Pelanggan"} pesan ${a.layanan||"makanan"}.`),document.hidden&&"granted"===Notification.permission&&new Notification("🍽️ Pesanan Baru — TulangTulung",{body:`${a.customer_nama||"Pelanggan"} pesan ${a.layanan||"makanan"}.`,icon:"/logo-resto.png",tag:"resto-order-"+a.id})}}),r=!1,l(),function(){const a=new Date,t=s.latestOrdersResto.filter(a=>"selesai"===a.status&&a.timestamp);let e=0,n=0,o=0,i=0;t.forEach(t=>{const s=new Date(t.timestamp),r=s.getDate()===a.getDate()&&s.getMonth()===a.getMonth()&&s.getFullYear()===a.getFullYear(),l=s.getMonth()===a.getMonth()&&s.getFullYear()===a.getFullYear(),c=t.subtotal_makanan||0;r&&(e+=c,n++),l&&(o+=c,i++)}),document.getElementById("txtPendapatanHarian").textContent=formatRupiah(e),document.getElementById("txtJumlahOrderHarian").textContent=n+" pesanan",document.getElementById("txtPendapatanBulanan").textContent=formatRupiah(o),document.getElementById("txtJumlahOrderBulanan").textContent=i+" pesanan"}()})}export function formatRupiah(a){return"Rp "+(a||0).toLocaleString("id-ID")}function l(){const a=document.getElementById("listPesananResto");a.innerHTML="";const t=s.latestOrdersResto.filter(a=>["menunggu_resto","diterima_resto","diambil","selesai","ditolak_resto"].includes(a.status));0!==t.length?t.forEach(t=>{const e=(t.items?Object.values(t.items):[]).map(a=>`<div class="oc-item-row"><span>${a.qty}x ${a.nama}${a.opsi_text?`<br><small style="font-weight:600; color:var(--text3);">${a.opsi_text}</small>`:""}</span><b>${formatRupiah(a.harga*a.qty)}</b></div>`).join("");let n="",s="";"menunggu_resto"===t.status?s=`<div class="action-grid">\n                <button class="btn-reject" onclick="tolakPesananResto('${t.id}')">✕ Tolak</button>\n                <button class="btn-accept" onclick="terimaPesananResto('${t.id}')">✓ Terima</button>\n            </div>`:"diterima_resto"===t.status?n='<span class="pill pill-proses">🍳 Sedang disiapkan, menunggu driver</span>':"diambil"===t.status?n=`<span class="pill pill-diambil">🛵 Driver ${t.driver_nama||""} sedang menuju resto</span>`:"selesai"===t.status?n='<span class="pill pill-selesai">✅ Selesai diantar</span>':"ditolak_resto"===t.status&&(n='<span class="pill pill-tolak">✕ Ditolak</span>');const o=document.createElement("div");o.className="order-card"+("menunggu_resto"===t.status?" order-card-new":""),o.innerHTML=`\n            <div class="oc-header"><span class="oc-badge">${t.waktu_order||""}</span><span class="oc-time">${t.customer_nama||""}</span></div>\n            <div class="oc-body">\n                <div class="oc-cust-name">👤 ${t.customer_nama||""}</div>\n                <div class="oc-items">${e}<div class="oc-total-row"><span>Total Makanan</span><span>${formatRupiah(t.subtotal_makanan)}</span></div></div>\n                ${t.catatan?`<div class="oc-note">📝 ${t.catatan}</div>`:""}\n                ${n}\n                ${s}\n            </div>`,a.appendChild(o)}):a.innerHTML='<div class="empty-state"><span class="empty-icon">📭</span><div class="empty-title">Belum ada pesanan masuk.</div></div>'}window.renderPesananResto=l,window.terimaPesananResto=function(t){confirm("Terima pesanan ini? Mulai siapkan makanannya ya.")&&e(a(n,"orders/"+t),{status:"diterima_resto"}).catch(a=>alert("Error: "+a))},window.tolakPesananResto=function(t){const s=prompt("Alasan ditolak (misal: bahan habis) -- opsional:")||"";confirm("Tolak pesanan ini?")&&e(a(n,"orders/"+t),{status:"ditolak_resto",alasan_tolak_resto:s}).catch(a=>alert("Error: "+a))};
+import { ref, onValue, update, query, orderByChild, equalTo, limitToLast } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
+import { database } from "./config.js";
+import { state } from "./state.js";
+import { showFloatingNotifResto } from "./notifications.js";
+
+const BATAS_ORDER_RESTO = 300;
+const orderYangSudahBunyi = new Set();
+let pemantauanPertamaKali = true;
+
+export function pantauPesananResto() {
+  const ordersQuery = query(ref(database, "orders"), orderByChild("resto_id"), equalTo(state.waRestoAktif), limitToLast(BATAS_ORDER_RESTO));
+
+  onValue(ordersQuery, (snapshot) => {
+    const daftar = [];
+    snapshot.forEach((child) => {
+      const order = child.val();
+      order.id = child.key;
+      daftar.push(order);
+    });
+    daftar.reverse();
+    state.latestOrdersResto = daftar;
+
+    daftar.forEach((order) => {
+      if (order.status === "menunggu_resto" && !orderYangSudahBunyi.has(order.id)) {
+        orderYangSudahBunyi.add(order.id);
+        if (!pemantauanPertamaKali) {
+          const audio = document.getElementById("suaraNotifResto");
+          if (audio) {
+            audio.currentTime = 0;
+            audio.play().catch(() => {});
+          }
+          showFloatingNotifResto("🍽️ Pesanan Baru Masuk!", `${order.customer_nama || "Pelanggan"} pesan ${order.layanan || "makanan"}.`);
+          if (document.hidden && Notification.permission === "granted") {
+            new Notification("🍽️ Pesanan Baru — TulangTulung", {
+              body: `${order.customer_nama || "Pelanggan"} pesan ${order.layanan || "makanan"}.`,
+              icon: "/logo-resto.png",
+              tag: "resto-order-" + order.id,
+            });
+          }
+        }
+      }
+    });
+    pemantauanPertamaKali = false;
+
+    renderPesananResto();
+    hitungRingkasanPendapatan();
+  });
+}
+
+export function formatRupiah(nilai) {
+  return "Rp " + (nilai || 0).toLocaleString("id-ID");
+}
+
+function hitungRingkasanPendapatan() {
+  const sekarang = new Date();
+  const orderSelesai = state.latestOrdersResto.filter((order) => order.status === "selesai" && order.timestamp);
+
+  let pendapatanHarian = 0;
+  let jumlahHarian = 0;
+  let pendapatanBulanan = 0;
+  let jumlahBulanan = 0;
+
+  orderSelesai.forEach((order) => {
+    const tanggal = new Date(order.timestamp);
+    const samaHari = tanggal.getDate() === sekarang.getDate() && tanggal.getMonth() === sekarang.getMonth() && tanggal.getFullYear() === sekarang.getFullYear();
+    const samaBulan = tanggal.getMonth() === sekarang.getMonth() && tanggal.getFullYear() === sekarang.getFullYear();
+    const subtotal = order.subtotal_makanan || 0;
+
+    if (samaHari) {
+      pendapatanHarian += subtotal;
+      jumlahHarian++;
+    }
+    if (samaBulan) {
+      pendapatanBulanan += subtotal;
+      jumlahBulanan++;
+    }
+  });
+
+  document.getElementById("txtPendapatanHarian").textContent = formatRupiah(pendapatanHarian);
+  document.getElementById("txtJumlahOrderHarian").textContent = jumlahHarian + " pesanan";
+  document.getElementById("txtPendapatanBulanan").textContent = formatRupiah(pendapatanBulanan);
+  document.getElementById("txtJumlahOrderBulanan").textContent = jumlahBulanan + " pesanan";
+}
+
+function renderPesananResto() {
+  const listEl = document.getElementById("listPesananResto");
+  listEl.innerHTML = "";
+
+  const daftar = state.latestOrdersResto.filter((order) =>
+    ["menunggu_resto", "diterima_resto", "diambil", "selesai", "ditolak_resto"].includes(order.status)
+  );
+
+  if (daftar.length === 0) {
+    listEl.innerHTML = '<div class="empty-state"><span class="empty-icon">📭</span><div class="empty-title">Belum ada pesanan masuk.</div></div>';
+    return;
+  }
+
+  daftar.forEach((order) => {
+    const baris = (order.items ? Object.values(order.items) : [])
+      .map(
+        (item) =>
+          `<div class="oc-item-row"><span>${item.qty}x ${item.nama}${item.opsi_text ? `<br><small style="font-weight:600; color:var(--text3);">${item.opsi_text}</small>` : ""}</span><b>${formatRupiah(item.harga * item.qty)}</b></div>`
+      )
+      .join("");
+
+    let statusPill = "";
+    let tombolAksi = "";
+    if (order.status === "menunggu_resto") {
+      tombolAksi = `<div class="action-grid">
+                <button class="btn-reject" onclick="tolakPesananResto('${order.id}')">✕ Tolak</button>
+                <button class="btn-accept" onclick="terimaPesananResto('${order.id}')">✓ Terima</button>
+            </div>`;
+    } else if (order.status === "diterima_resto") {
+      statusPill = '<span class="pill pill-proses">🍳 Sedang disiapkan, menunggu driver</span>';
+    } else if (order.status === "diambil") {
+      statusPill = `<span class="pill pill-diambil">🛵 Driver ${order.driver_nama || ""} sedang menuju resto</span>`;
+    } else if (order.status === "selesai") {
+      statusPill = '<span class="pill pill-selesai">✅ Selesai diantar</span>';
+    } else if (order.status === "ditolak_resto") {
+      statusPill = '<span class="pill pill-tolak">✕ Ditolak</span>';
+    }
+
+    const kartu = document.createElement("div");
+    kartu.className = "order-card" + (order.status === "menunggu_resto" ? " order-card-new" : "");
+    kartu.innerHTML = `
+            <div class="oc-header"><span class="oc-badge">${order.waktu_order || ""}</span><span class="oc-time">${order.customer_nama || ""}</span></div>
+            <div class="oc-body">
+                <div class="oc-cust-name">👤 ${order.customer_nama || ""}</div>
+                <div class="oc-items">${baris}<div class="oc-total-row"><span>Total Makanan</span><span>${formatRupiah(order.subtotal_makanan)}</span></div></div>
+                ${order.catatan ? `<div class="oc-note">📝 ${order.catatan}</div>` : ""}
+                ${statusPill}
+                ${tombolAksi}
+            </div>`;
+    listEl.appendChild(kartu);
+  });
+}
+
+window.renderPesananResto = renderPesananResto;
+
+window.terimaPesananResto = function (orderId) {
+  if (!confirm("Terima pesanan ini? Mulai siapkan makanannya ya.")) return;
+  update(ref(database, "orders/" + orderId), { status: "diterima_resto" }).catch((err) => alert("Error: " + err));
+};
+
+window.tolakPesananResto = function (orderId) {
+  const alasan = prompt("Alasan ditolak (misal: bahan habis) -- opsional:") || "";
+  if (!confirm("Tolak pesanan ini?")) return;
+  update(ref(database, "orders/" + orderId), { status: "ditolak_resto", alasan_tolak_resto: alasan }).catch((err) => alert("Error: " + err));
+};
