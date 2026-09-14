@@ -1,1 +1,147 @@
-import{ref as a,onValue as e,push as n,set as t,remove as i}from"https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";import{database as o}from"./config.js";import{state as s}from"./state.js";export function updateKeuStatPemasukan(){const a=s.totalPemasukanAdminGlobal+s.totalPemasukanManualGlobal,e=document.getElementById("keuStatPemasukan"),n=document.getElementById("keuStatSaldo");e&&(e.innerText="Rp "+a.toLocaleString("id-ID")),n&&(n.innerText="Rp "+(a-s.totalPengeluaranManualGlobal).toLocaleString("id-ID"))}export function muatDataKeuangan(){console.log("Memulai penarikan data keuangan...");const n=a(o,"keuangan");e(n,a=>{s.allKeuanganData=[];let e=0,n=0;a.exists()&&a.forEach(a=>{const t=a.val()||{};t.id=a.key,s.allKeuanganData.push(t),"pemasukan"===t.jenis?e+=t.nominal||0:n+=t.nominal||0}),s.totalPemasukanManualGlobal=e,s.totalPengeluaranManualGlobal=n,document.getElementById("keuStatPengeluaran").innerText="Rp "+n.toLocaleString("id-ID"),updateKeuStatPemasukan(),renderKeuangan()},a=>{console.error("Gagal menarik data keuangan:",a)})}window.pilihJenisKeuangan=function(a){s.jenisKeuanganAktif=a,document.getElementById("btnJenisPemasukan").classList.toggle("selected","pemasukan"===a),document.getElementById("btnJenisPengeluaran").classList.toggle("selected","pengeluaran"===a)},window.simpanTransaksiKeuangan=function(){const e=document.getElementById("keuKeterangan").value.trim(),i=parseInt(document.getElementById("keuNominal").value);if(!e)return void alert("Isi keterangan transaksinya dulu lur!");if(!i||i<=0)return void alert("Masukkan nominal yang benar!");const l=n(a(o,"keuangan"));t(l,{jenis:s.jenisKeuanganAktif,keterangan:e,nominal:i,timestamp:Date.now()}).then(()=>{document.getElementById("keuKeterangan").value="",document.getElementById("keuNominal").value=""}).catch(a=>alert("Gagal simpan transaksi: "+a))},window.renderKeuangan=function(){const a=document.getElementById("listKeuangan");a.innerHTML="",0!==s.allKeuanganData.length?[...s.allKeuanganData].sort((a,e)=>(e.timestamp||0)-(a.timestamp||0)).forEach(e=>{const n="pemasukan"===e.jenis,t=n?"#27ae60":"#e74c3c",i=n?"+":"-";let o="-";if(e.timestamp){const a=new Date(e.timestamp);o=a.toLocaleDateString("id-ID",{day:"numeric",month:"long",year:"numeric"})+" - "+a.toLocaleTimeString("id-ID",{hour:"2-digit",minute:"2-digit"})}const s=document.createElement("div");s.className="card",s.style.borderTopColor=t,s.innerHTML=`\n            <div style="display:flex; justify-content:space-between; margin-bottom:10px;">\n                <span style="font-size:11px; color:#7f8c8d; font-weight:800;">${o}</span>\n                <span style="font-size:11px; font-weight:800; color:${t}; text-transform:uppercase; padding:3px 8px; border-radius:12px; border:1px solid ${t}40; background:${t}10;">${n?"PEMASUKAN":"PENGELUARAN"}</span>\n            </div>\n            <div class="card-title" style="font-size:15px;">${e.keterangan||"-"}</div>\n            <div class="nominal-besar" style="color:${t};">${i} Rp ${(e.nominal||0).toLocaleString("id-ID")}</div>\n            <div style="text-align:right; margin-top:10px;">\n                <button class="btn-hapus" onclick="hapusKeuangan('${e.id}')">🗑️ Hapus</button>\n            </div>\n        `,a.appendChild(s)}):a.innerHTML="<p style='font-weight:600; color:#7f8c8d;'>Urung ana transaksi keuangan.</p>"},window.hapusKeuangan=function(e){confirm("Yakin hapus transaksi ini secara permanen?")&&i(a(o,`keuangan/${e}`)).then(()=>console.log("Transaksi terhapus")).catch(a=>alert("Gagal hapus: "+a))},window.exportKeuanganCSV=function(){if(0===s.allKeuanganData.length)return void alert("Belum ada data transaksi untuk di-download.");let a="Tanggal & Waktu,Jenis,Keterangan,Nominal\n";[...s.allKeuanganData].sort((a,e)=>(e.timestamp||0)-(a.timestamp||0)).forEach(e=>{let n="";if(e.timestamp){const a=new Date(e.timestamp);n=a.toLocaleDateString("id-ID")+" "+a.toLocaleTimeString("id-ID")}const t="pemasukan"===e.jenis?"Pemasukan":"Pengeluaran",i=`"${(e.keterangan||"").replace(/"/g,'""')}"`;a+=`${n},${t},${i},${e.nominal||0}\n`});const e=new Blob([a],{type:"text/csv;charset=utf-8;"}),n=document.createElement("a"),t=URL.createObjectURL(e);n.setAttribute("href",t),n.setAttribute("download","Laporan_Keuangan_TTG_"+(new Date).toLocaleDateString("id-ID")+".csv"),n.style.visibility="hidden",document.body.appendChild(n),n.click(),document.body.removeChild(n)};
+import { ref, query, orderByChild, limitToLast, onValue, push, set, remove } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
+import { database } from "./config.js";
+import { state } from "./state.js";
+
+const BATAS_KEUANGAN_DIMUAT = 1000;
+
+export function updateKeuStatPemasukan() {
+  const totalPemasukan = state.totalPemasukanAdminGlobal + state.totalPemasukanManualGlobal;
+  const elPemasukan = document.getElementById("keuStatPemasukan");
+  const elSaldo = document.getElementById("keuStatSaldo");
+  if (elPemasukan) elPemasukan.innerText = "Rp " + totalPemasukan.toLocaleString("id-ID");
+  if (elSaldo) elSaldo.innerText = "Rp " + (totalPemasukan - state.totalPengeluaranManualGlobal).toLocaleString("id-ID");
+}
+
+export function muatDataKeuangan() {
+  const keuanganQuery = query(ref(database, "keuangan"), orderByChild("timestamp"), limitToLast(BATAS_KEUANGAN_DIMUAT));
+
+  onValue(
+    keuanganQuery,
+    (snapshot) => {
+      state.allKeuanganData = [];
+      let totalPemasukan = 0;
+      let totalPengeluaran = 0;
+
+      snapshot.forEach((child) => {
+        const transaksi = child.val() || {};
+        transaksi.id = child.key;
+        state.allKeuanganData.push(transaksi);
+        if (transaksi.jenis === "pemasukan") {
+          totalPemasukan += transaksi.nominal || 0;
+        } else {
+          totalPengeluaran += transaksi.nominal || 0;
+        }
+      });
+
+      state.totalPemasukanManualGlobal = totalPemasukan;
+      state.totalPengeluaranManualGlobal = totalPengeluaran;
+      document.getElementById("keuStatPengeluaran").innerText = "Rp " + totalPengeluaran.toLocaleString("id-ID");
+      updateKeuStatPemasukan();
+      renderKeuangan();
+    },
+    (err) => console.error("Gagal menarik data keuangan:", err)
+  );
+}
+
+window.pilihJenisKeuangan = function (jenis) {
+  state.jenisKeuanganAktif = jenis;
+  document.getElementById("btnJenisPemasukan").classList.toggle("selected", jenis === "pemasukan");
+  document.getElementById("btnJenisPengeluaran").classList.toggle("selected", jenis === "pengeluaran");
+};
+
+window.simpanTransaksiKeuangan = function () {
+  const keterangan = document.getElementById("keuKeterangan").value.trim();
+  const nominal = parseInt(document.getElementById("keuNominal").value);
+
+  if (!keterangan) return alert("Isi keterangan transaksinya dulu lur!");
+  if (!nominal || nominal <= 0) return alert("Masukkan nominal yang benar!");
+
+  const entriBaru = push(ref(database, "keuangan"));
+  set(entriBaru, {
+    jenis: state.jenisKeuanganAktif,
+    keterangan,
+    nominal,
+    timestamp: Date.now(),
+  })
+    .then(() => {
+      document.getElementById("keuKeterangan").value = "";
+      document.getElementById("keuNominal").value = "";
+    })
+    .catch((err) => alert("Gagal simpan transaksi: " + err));
+};
+
+window.renderKeuangan = function () {
+  const listEl = document.getElementById("listKeuangan");
+  listEl.innerHTML = "";
+
+  if (state.allKeuanganData.length === 0) {
+    listEl.innerHTML = "<p style='font-weight:600; color:#7f8c8d;'>Urung ana transaksi keuangan.</p>";
+    return;
+  }
+
+  [...state.allKeuanganData]
+    .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
+    .forEach((transaksi) => {
+      const isPemasukan = transaksi.jenis === "pemasukan";
+      const warna = isPemasukan ? "#27ae60" : "#e74c3c";
+      const tanda = isPemasukan ? "+" : "-";
+
+      let waktu = "-";
+      if (transaksi.timestamp) {
+        const tanggal = new Date(transaksi.timestamp);
+        waktu =
+          tanggal.toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" }) +
+          " - " +
+          tanggal.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+      }
+
+      const kartu = document.createElement("div");
+      kartu.className = "card";
+      kartu.style.borderTopColor = warna;
+      kartu.innerHTML = `
+            <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+                <span style="font-size:11px; color:#7f8c8d; font-weight:800;">${waktu}</span>
+                <span style="font-size:11px; font-weight:800; color:${warna}; text-transform:uppercase; padding:3px 8px; border-radius:12px; border:1px solid ${warna}40; background:${warna}10;">${isPemasukan ? "PEMASUKAN" : "PENGELUARAN"}</span>
+            </div>
+            <div class="card-title" style="font-size:15px;">${transaksi.keterangan || "-"}</div>
+            <div class="nominal-besar" style="color:${warna};">${tanda} Rp ${(transaksi.nominal || 0).toLocaleString("id-ID")}</div>
+            <div style="text-align:right; margin-top:10px;">
+                <button class="btn-hapus" onclick="hapusKeuangan('${transaksi.id}')">🗑️ Hapus</button>
+            </div>
+        `;
+      listEl.appendChild(kartu);
+    });
+};
+
+window.hapusKeuangan = function (id) {
+  if (!confirm("Yakin hapus transaksi ini secara permanen?")) return;
+  remove(ref(database, `keuangan/${id}`)).catch((err) => alert("Gagal hapus: " + err));
+};
+
+window.exportKeuanganCSV = function () {
+  if (state.allKeuanganData.length === 0) return alert("Belum ada data transaksi untuk di-download.");
+
+  let csv = "Tanggal & Waktu,Jenis,Keterangan,Nominal\n";
+  [...state.allKeuanganData]
+    .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
+    .forEach((transaksi) => {
+      let waktu = "";
+      if (transaksi.timestamp) {
+        const tanggal = new Date(transaksi.timestamp);
+        waktu = tanggal.toLocaleDateString("id-ID") + " " + tanggal.toLocaleTimeString("id-ID");
+      }
+      const jenis = transaksi.jenis === "pemasukan" ? "Pemasukan" : "Pengeluaran";
+      const keterangan = `"${(transaksi.keterangan || "").replace(/"/g, '""')}"`;
+      csv += `${waktu},${jenis},${keterangan},${transaksi.nominal || 0}\n`;
+    });
+
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const link = document.createElement("a");
+  const url = URL.createObjectURL(blob);
+  link.setAttribute("href", url);
+  link.setAttribute("download", "Laporan_Keuangan_TTG_" + new Date().toLocaleDateString("id-ID") + ".csv");
+  link.style.visibility = "hidden";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
