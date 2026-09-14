@@ -1,0 +1,1 @@
+import"./config.js";import"./state.js";import"./auth.js";import"./notifications.js";import"./navigation.js";import"./maps.js";import"./cart.js";import"./resto.js";import"./orders.js";import"./chat.js";import{setLang as r}from"./i18n.js";"serviceWorker"in navigator&&window.addEventListener("load",()=>{navigator.serviceWorker.register("sw-customer.js").catch(r=>{})}),r("ngapak");

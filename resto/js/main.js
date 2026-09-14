@@ -1,0 +1,1 @@
+import"./config.js";import"./state.js";import"./notifications.js";import"./dashboard.js";import"./orders.js";import"./menu.js";import{cekSesiResto as r}from"./auth.js";"serviceWorker"in navigator&&window.addEventListener("load",()=>{navigator.serviceWorker.register("sw-resto.js").catch(()=>{})}),r();

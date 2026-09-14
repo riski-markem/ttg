@@ -1,0 +1,1 @@
+export const state={namaDriverAktif:"",waDriverAktif:"",saldoDriverAktif:0,kotaDriverAktif:null,currentLang:"ngapak",orderYangSudahBunyi:new Set,latestOrdersData:[],batalOtomatisDiproses:new Set,ikutBpjsAktif:!1,tabunganBpjsAktif:0};

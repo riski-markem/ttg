@@ -1,0 +1,1 @@
+export const state={namaRestoAktif:"",waRestoAktif:"",statusBukaAktif:!0,latestOrdersResto:[],latestMenuResto:{}};

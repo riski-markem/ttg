@@ -1,0 +1,1 @@
+export const state={allDriversData:[],allRestoranData:[],allOrdersData:[],allKeuanganData:[],jenisKeuanganAktif:"pemasukan",listenerAdminSudahNyala:!1,totalPemasukanAdminGlobal:0,totalPemasukanManualGlobal:0,totalPengeluaranManualGlobal:0,periodeRingkasanAktif:"hari",pengaturanBpjs:{potongan_per_order:500,iuran_bulanan:16800}};

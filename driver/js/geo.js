@@ -1,0 +1,1 @@
+import{GOOGLE_MAPS_API_KEY as o}from"./config.js";import{tentukanKotaDariKoordinat as t}from"../../shared/geo.js";export function tentukanKotaDariKoordinat(r,a){return t(r,a,o)}

@@ -1,0 +1,1 @@
+export const state={userAktif:{nama:"",wa:""},layananAktif:"",currentLang:"ngapak",currentOrderId:"",kotaCustomerAktif:null,cartMakanan:{resto_id:null,resto_nama:"",resto_alamat:"",resto_lat:null,resto_lng:null,items:{}}};export function resetCartMakanan(a=null){state.cartMakanan={resto_id:a,resto_nama:"",resto_alamat:"",resto_lat:null,resto_lng:null,items:{}}}

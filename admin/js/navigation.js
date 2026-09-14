@@ -1,0 +1,1 @@
+window.bukaTab=function(e){["driver","resto","order","keuangan"].forEach(e=>{document.getElementById(`btn-tab-${e}`).classList.remove("active"),document.getElementById(`tab-${e}`).classList.add("hidden")}),document.getElementById(`btn-tab-${e}`).classList.add("active"),document.getElementById(`tab-${e}`).classList.remove("hidden")};

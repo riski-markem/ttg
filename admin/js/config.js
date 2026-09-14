@@ -1,0 +1,1 @@
+import{app as t,database as e}from"../../shared/firebase-config.js";import{getAuth as o}from"https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";export{t as app,e as database};export const auth=o(t);export const BIAYA_PLATFORM=1e3;
