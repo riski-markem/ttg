@@ -1,1 +1,85 @@
-import{state as e}from"./state.js";import{navigasiKe as t}from"./navigation.js";import{pantauDataPesenanWarga as n}from"./orders.js";import{setupPushNotification as a}from"./notifications.js";export function getIzinWaDefault(){return"1"===localStorage.getItem("ttg_izin_wa_default")}window.toggleIzinWaDefault=function(){const e=document.getElementById("switchIzinWaDefault"),t=!e.classList.contains("on");e.classList.toggle("on",t),localStorage.setItem("ttg_izin_wa_default",t?"1":"0")};export function renderSwitchIzinWaDefault(){const e=document.getElementById("switchIzinWaDefault");e&&e.classList.toggle("on",getIzinWaDefault())}export function resetIzinWaOrderToggle(){const e=document.getElementById("switchIzinWaOrder");e&&e.classList.toggle("on",getIzinWaDefault())}export function periksaLogin(){const t=localStorage.getItem("ttg_customer");t&&(e.userAktif=JSON.parse(t),document.getElementById("displayNama").innerText=e.userAktif.nama,document.getElementById("profileNama").innerText=e.userAktif.nama,document.getElementById("profileWA").innerText=e.userAktif.wa,document.getElementById("page-login").classList.add("hidden"),document.getElementById("app-main").classList.remove("hidden"),renderSwitchIzinWaDefault(),n(),a())}window.masukAplikasi=function(){const i=document.getElementById("inputNama").value.trim(),o=document.getElementById("inputWA").value.trim();i&&o?(e.userAktif={nama:i,wa:o},localStorage.setItem("ttg_customer",JSON.stringify(e.userAktif)),document.getElementById("displayNama").innerText=i,document.getElementById("profileNama").innerText=i,document.getElementById("profileWA").innerText=o,document.getElementById("page-login").classList.add("hidden"),document.getElementById("app-main").classList.remove("hidden"),t("home"),renderSwitchIzinWaDefault(),n(),a()):alert("en"===e.currentLang?"Please fill all fields!":"Data kudu diisi kabeh lur!")},window.kaluarAplikasi=function(){confirm("en"===e.currentLang?"Are you sure you want to logout?":"ngapak"===e.currentLang?"Tenane arep metu (logout)?":"Yakin badé kaluar?")&&(localStorage.removeItem("ttg_customer"),e.userAktif={nama:"",wa:""},document.getElementById("inputNama").value="",document.getElementById("inputWA").value="",document.getElementById("app-main").classList.add("hidden"),document.getElementById("page-login").classList.remove("hidden"))},periksaLogin();
+import { state } from "./state.js";
+import { navigasiKe } from "./navigation.js";
+import { pantauDataPesenanWarga } from "./orders.js";
+import { setupPushNotification } from "./notifications.js";
+import { authSiap } from "./config.js";
+
+export function getIzinWaDefault() {
+  return localStorage.getItem("ttg_izin_wa_default") === "1";
+}
+
+window.toggleIzinWaDefault = function () {
+  const el = document.getElementById("switchIzinWaDefault");
+  const aktif = !el.classList.contains("on");
+  el.classList.toggle("on", aktif);
+  localStorage.setItem("ttg_izin_wa_default", aktif ? "1" : "0");
+};
+
+export function renderSwitchIzinWaDefault() {
+  const el = document.getElementById("switchIzinWaDefault");
+  if (el) el.classList.toggle("on", getIzinWaDefault());
+}
+
+export function resetIzinWaOrderToggle() {
+  const el = document.getElementById("switchIzinWaOrder");
+  if (el) el.classList.toggle("on", getIzinWaDefault());
+}
+
+export async function periksaLogin() {
+  const sesiTersimpan = localStorage.getItem("ttg_customer");
+  if (!sesiTersimpan) return;
+
+  state.userAktif = JSON.parse(sesiTersimpan);
+  document.getElementById("displayNama").innerText = state.userAktif.nama;
+  document.getElementById("profileNama").innerText = state.userAktif.nama;
+  document.getElementById("profileWA").innerText = state.userAktif.wa;
+  document.getElementById("page-login").classList.add("hidden");
+  document.getElementById("app-main").classList.remove("hidden");
+  renderSwitchIzinWaDefault();
+
+  await authSiap;
+  pantauDataPesenanWarga();
+  setupPushNotification();
+}
+
+window.masukAplikasi = async function () {
+  const nama = document.getElementById("inputNama").value.trim();
+  const wa = document.getElementById("inputWA").value.trim();
+
+  if (!nama || !wa) {
+    return alert(state.currentLang === "en" ? "Please fill all fields!" : "Data kudu diisi kabeh lur!");
+  }
+
+  state.userAktif = { nama, wa };
+  localStorage.setItem("ttg_customer", JSON.stringify(state.userAktif));
+  document.getElementById("displayNama").innerText = nama;
+  document.getElementById("profileNama").innerText = nama;
+  document.getElementById("profileWA").innerText = wa;
+  document.getElementById("page-login").classList.add("hidden");
+  document.getElementById("app-main").classList.remove("hidden");
+  navigasiKe("home");
+  renderSwitchIzinWaDefault();
+
+  await authSiap;
+  pantauDataPesenanWarga();
+  setupPushNotification();
+};
+
+window.kaluarAplikasi = function () {
+  const konfirmTeks =
+    state.currentLang === "en"
+      ? "Are you sure you want to logout?"
+      : state.currentLang === "ngapak"
+      ? "Tenane arep metu (logout)?"
+      : "Yakin badé kaluar?";
+  if (!confirm(konfirmTeks)) return;
+
+  localStorage.removeItem("ttg_customer");
+  state.userAktif = { nama: "", wa: "" };
+  document.getElementById("inputNama").value = "";
+  document.getElementById("inputWA").value = "";
+  document.getElementById("app-main").classList.add("hidden");
+  document.getElementById("page-login").classList.remove("hidden");
+};
+
+periksaLogin();
