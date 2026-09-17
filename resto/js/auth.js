@@ -1,1 +1,243 @@
-import{ref as e,get as a,child as t,set as n}from"https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";import{createUserWithEmailAndPassword as i,signInWithEmailAndPassword as s}from"https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";import{database as o,auth as r,NOMOR_ADMIN_DRIVER as d}from"./config.js";import{state as l}from"./state.js";import{updateLokasiWarungUI as u,updateToggleBukaUI as m}from"./dashboard.js";import{pantauPesananResto as g}from"./orders.js";import{pantauMenuResto as c}from"./menu.js";import{setupPushNotificationResto as f}from"./notifications.js";function p(e){return e.replace(/[^0-9]/g,"")+"@resto.mastulung.app"}function k(){localStorage.removeItem("ttg_resto")}export function cekSesiResto(){const n=localStorage.getItem("ttg_resto");if(!n)return;let i;try{i=JSON.parse(n)}catch(e){return void k()}i.wa&&i.nama?a(t(e(o),`restoran/${i.wa}`)).then(e=>{if(!e.exists())return void k();const a=e.val();"pending"!==a.status&&"suspend"!==a.status&&"ditolak"!==a.status?b(i.wa,a):k()}):k()}function h(n,i){a(t(e(o),`restoran/${n}`)).then(e=>{if(!e.exists())return i.disabled=!1,i.innerText="Masuk",alert("Data resto tidak ditemukan. Hubungi admin.");const a=e.val();return"pending"===a.status?(i.disabled=!1,i.innerText="Masuk",alert("Akun kamu masih menunggu verifikasi admin.")):"suspend"===a.status?(i.disabled=!1,i.innerText="Masuk",alert("Akun kamu sedang disuspend. Hubungi admin.")):"ditolak"===a.status?(i.disabled=!1,i.innerText="Masuk",alert("Pendaftaran kamu ditolak admin."+(a.alasan_tolak?" Alasan: "+a.alasan_tolak:"")+" Hubungi admin untuk info lebih lanjut.")):(function(e,a){localStorage.setItem("ttg_resto",JSON.stringify({wa:e,nama:a}))}(n,a.nama),void b(n,a))}).catch(e=>{i.disabled=!1,i.innerText="Masuk",alert("Error: "+e.message)})}function b(e,a){l.namaRestoAktif=a.nama,l.waRestoAktif=e,l.statusBukaAktif=!1!==a.buka,document.getElementById("displayNamaResto").innerText=a.nama,document.getElementById("profDisplayNama").innerText=a.nama,document.getElementById("profDisplayWA").innerText=e,a.foto_profil&&(document.getElementById("restoFotoProfil").value=a.foto_profil,document.getElementById("previewFotoProfilResto").src=a.foto_profil,document.getElementById("previewFotoProfilResto").classList.remove("hidden"),document.getElementById("labelUploadFotoProfilResto").textContent="📷 Ganti Foto",document.getElementById("profAvatarWrap").innerHTML=`<img src="${a.foto_profil}" style="width:100%; height:100%; object-fit:cover; border-radius:50%;">`),u(a.lat,a.lng),m(),document.getElementById("page-login").classList.add("hidden"),document.getElementById("page-register").classList.add("hidden"),document.getElementById("page-dashboard").classList.remove("hidden"),g(),c(),f()}window.tampilDaftar=function(){document.getElementById("page-login").classList.add("hidden"),document.getElementById("page-register").classList.remove("hidden")},window.tampilLogin=function(){document.getElementById("page-register").classList.add("hidden"),document.getElementById("page-login").classList.remove("hidden")},window.prosesDaftar=function(){const s=document.getElementById("regNama").value.trim(),l=document.getElementById("regWA").value.trim(),u=document.getElementById("regAlamat").value.trim(),m=document.getElementById("regPass").value,g=document.getElementById("chkSetujuResto").checked;if(!(s&&l&&u&&m))return alert("Mohon lengkapi semua data.");if(m.length<6)return alert("Kata sandi minimal 6 karakter.");if(!g)return alert("Mohon centang persetujuan dulu ya.");const c=document.getElementById("ui-btn-reg");c.disabled=!0,c.innerText="Loading... ⏳",a(t(e(o),`restoran/${l}`)).then(a=>a.exists()?(c.disabled=!1,c.innerText="Daftar Sekarang",alert("No. WA ini sudah terdaftar sebagai resto.")):i(r,p(l),m).then(()=>n(e(o,"restoran/"+l),{nama:s,wa:l,alamat:u,status:"pending",buka:!0,tanggal_daftar:(new Date).toLocaleDateString("id-ID")})).then(()=>{alert("Pendaftaran terkirim! Tunggu verifikasi admin ya (biasanya cepat, apalagi kalau kamu konfirmasi via WA)."),window.tampilLogin(),document.getElementById("loginWA").value=l,c.disabled=!1,c.innerText="Daftar Sekarang";const e=`Halo Admin TulangTulung.id, saya ${s} (WA: ${l}) baru saja mendaftar sebagai Mitra Resto melalui aplikasi. Mohon segera diverifikasi/di-ACC ya. Terima kasih!`;window.open(`https://wa.me/${d}?text=${encodeURIComponent(e)}`,"_blank")})).catch(e=>{if(c.disabled=!1,c.innerText="Daftar Sekarang","auth/email-already-in-use"===e.code)return alert("No. WA ini sudah pernah dipakai daftar sebelumnya.");alert("Error: "+e.message)})},window.prosesLogin=function(){const n=document.getElementById("loginWA").value.trim(),d=document.getElementById("loginPass").value;if(!n||!d)return alert("Mohon isi No. WA & kata sandi.");const l=document.getElementById("ui-btn-login");l.disabled=!0,l.innerText="Loading... ⏳",s(r,p(n),d).then(()=>{h(n,l)}).catch(s=>{"auth/user-not-found"===s.code||"auth/invalid-credential"===s.code?a(t(e(o),`restoran/${n}`)).then(e=>{if(!e.exists()||e.val().password!==d)return l.disabled=!1,l.innerText="Masuk",alert("No. WA atau kata sandi salah.");i(r,p(n),d).then(()=>{h(n,l)}).catch(e=>{l.disabled=!1,l.innerText="Masuk",alert("Error migrasi akun: "+e.message)})}).catch(e=>{l.disabled=!1,l.innerText="Masuk",alert("Error: "+e.message)}):"auth/wrong-password"===s.code?(l.disabled=!1,l.innerText="Masuk",alert("No. WA atau kata sandi salah.")):(l.disabled=!1,l.innerText="Masuk",alert("Error: "+s.message))})},window.logoutResto=function(){confirm("Yakin mau keluar akun?")&&(k(),location.reload())};
+import { ref, get, child, set, update } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
+import { database, auth, authSiap, NOMOR_ADMIN_DRIVER } from "./config.js";
+import { state } from "./state.js";
+import { updateLokasiWarungUI, updateToggleBukaUI } from "./dashboard.js";
+import { pantauPesananResto } from "./orders.js";
+import { pantauMenuResto } from "./menu.js";
+import { setupPushNotificationResto } from "./notifications.js";
+
+function emailDariWa(wa) {
+  return wa.replace(/[^0-9]/g, "") + "@resto.mastulung.app";
+}
+
+function hapusSesiResto() {
+  localStorage.removeItem("ttg_resto");
+}
+
+function simpanSesiResto(wa, nama) {
+  localStorage.setItem("ttg_resto", JSON.stringify({ wa, nama }));
+}
+
+async function pastikanUidTersimpan(wa, data) {
+  if (!auth.currentUser || data.uid === auth.currentUser.uid) return;
+  try {
+    await update(ref(database, `restoran/${wa}`), { uid: auth.currentUser.uid });
+  } catch (err) {
+    console.error("Gagal menyinkronkan uid resto:", err);
+  }
+}
+
+function tampilkanDashboard(wa, data) {
+  state.namaRestoAktif = data.nama;
+  state.waRestoAktif = wa;
+  state.statusBukaAktif = data.buka !== false;
+
+  document.getElementById("displayNamaResto").innerText = data.nama;
+  document.getElementById("profDisplayNama").innerText = data.nama;
+  document.getElementById("profDisplayWA").innerText = wa;
+
+  if (data.foto_profil) {
+    document.getElementById("restoFotoProfil").value = data.foto_profil;
+    document.getElementById("previewFotoProfilResto").src = data.foto_profil;
+    document.getElementById("previewFotoProfilResto").classList.remove("hidden");
+    document.getElementById("labelUploadFotoProfilResto").textContent = "📷 Ganti Foto";
+    document.getElementById("profAvatarWrap").innerHTML =
+      `<img src="${data.foto_profil}" style="width:100%; height:100%; object-fit:cover; border-radius:50%;">`;
+  }
+
+  updateLokasiWarungUI(data.lat, data.lng);
+  updateToggleBukaUI();
+
+  document.getElementById("page-login").classList.add("hidden");
+  document.getElementById("page-register").classList.add("hidden");
+  document.getElementById("page-dashboard").classList.remove("hidden");
+
+  pantauPesananResto();
+  pantauMenuResto();
+  setupPushNotificationResto();
+}
+
+export async function cekSesiResto() {
+  const sesi = localStorage.getItem("ttg_resto");
+  if (!sesi) return;
+
+  let data;
+  try {
+    data = JSON.parse(sesi);
+  } catch (err) {
+    return hapusSesiResto();
+  }
+  if (!data.wa || !data.nama) return hapusSesiResto();
+
+  try {
+    await authSiap;
+    const snap = await get(child(ref(database), `restoran/${data.wa}`));
+    if (!snap.exists()) return hapusSesiResto();
+
+    const resto = snap.val();
+    if (["pending", "suspend", "ditolak"].includes(resto.status)) return hapusSesiResto();
+
+    await pastikanUidTersimpan(data.wa, resto);
+    tampilkanDashboard(data.wa, resto);
+  } catch (err) {
+    console.error("Auto-login resto gagal:", err);
+  }
+}
+
+function tanganiLoginSukses(wa, tombol) {
+  get(child(ref(database), `restoran/${wa}`))
+    .then(async (snap) => {
+      if (!snap.exists()) {
+        tombol.disabled = false;
+        tombol.innerText = "Masuk";
+        return alert("Data resto tidak ditemukan. Hubungi admin.");
+      }
+
+      const data = snap.val();
+      if (data.status === "pending") {
+        tombol.disabled = false;
+        tombol.innerText = "Masuk";
+        return alert("Akun kamu masih menunggu verifikasi admin.");
+      }
+      if (data.status === "suspend") {
+        tombol.disabled = false;
+        tombol.innerText = "Masuk";
+        return alert("Akun kamu sedang disuspend. Hubungi admin.");
+      }
+      if (data.status === "ditolak") {
+        tombol.disabled = false;
+        tombol.innerText = "Masuk";
+        return alert(
+          "Pendaftaran kamu ditolak admin." +
+            (data.alasan_tolak ? " Alasan: " + data.alasan_tolak : "") +
+            " Hubungi admin untuk info lebih lanjut."
+        );
+      }
+
+      await pastikanUidTersimpan(wa, data);
+      simpanSesiResto(wa, data.nama);
+      tampilkanDashboard(wa, data);
+      tombol.disabled = false;
+      tombol.innerText = "Masuk";
+    })
+    .catch((err) => {
+      tombol.disabled = false;
+      tombol.innerText = "Masuk";
+      alert("Error: " + err.message);
+    });
+}
+
+function migrasiAkunLama(wa, pass, tombol) {
+  get(child(ref(database), `restoran/${wa}`))
+    .then((snap) => {
+      if (!snap.exists() || snap.val().password !== pass) {
+        tombol.disabled = false;
+        tombol.innerText = "Masuk";
+        return alert("No. WA atau kata sandi salah.");
+      }
+      return createUserWithEmailAndPassword(auth, emailDariWa(wa), pass)
+        .then((credential) => update(ref(database, "restoran/" + wa), { password: null, uid: credential.user.uid }))
+        .then(() => tanganiLoginSukses(wa, tombol));
+    })
+    .catch((err) => {
+      tombol.disabled = false;
+      tombol.innerText = "Masuk";
+      alert("Error migrasi akun: " + err.message);
+    });
+}
+
+window.tampilDaftar = function () {
+  document.getElementById("page-login").classList.add("hidden");
+  document.getElementById("page-register").classList.remove("hidden");
+};
+
+window.tampilLogin = function () {
+  document.getElementById("page-register").classList.add("hidden");
+  document.getElementById("page-login").classList.remove("hidden");
+};
+
+window.prosesDaftar = function () {
+  const nama = document.getElementById("regNama").value.trim();
+  const wa = document.getElementById("regWA").value.trim();
+  const alamat = document.getElementById("regAlamat").value.trim();
+  const pass = document.getElementById("regPass").value;
+  const setuju = document.getElementById("chkSetujuResto").checked;
+
+  if (!nama || !wa || !alamat || !pass) return alert("Mohon lengkapi semua data.");
+  if (pass.length < 6) return alert("Kata sandi minimal 6 karakter.");
+  if (!setuju) return alert("Mohon centang persetujuan dulu ya.");
+
+  const tombol = document.getElementById("ui-btn-reg");
+  tombol.disabled = true;
+  tombol.innerText = "Loading... ⏳";
+
+  get(child(ref(database), `restoran/${wa}`))
+    .then((snap) => {
+      if (snap.exists()) {
+        tombol.disabled = false;
+        tombol.innerText = "Daftar Sekarang";
+        return alert("No. WA ini sudah terdaftar sebagai resto.");
+      }
+      return createUserWithEmailAndPassword(auth, emailDariWa(wa), pass)
+        .then((credential) =>
+          set(ref(database, "restoran/" + wa), {
+            nama,
+            wa,
+            alamat,
+            status: "pending",
+            buka: true,
+            uid: credential.user.uid,
+            tanggal_daftar: new Date().toLocaleDateString("id-ID"),
+          })
+        )
+        .then(() => {
+          alert("Pendaftaran terkirim! Tunggu verifikasi admin ya (biasanya cepat, apalagi kalau kamu konfirmasi via WA).");
+          window.tampilLogin();
+          document.getElementById("loginWA").value = wa;
+          tombol.disabled = false;
+          tombol.innerText = "Daftar Sekarang";
+
+          const pesan = `Halo Admin TulangTulung.id, saya ${nama} (WA: ${wa}) baru saja mendaftar sebagai Mitra Resto melalui aplikasi. Mohon segera diverifikasi/di-ACC ya. Terima kasih!`;
+          window.open(`https://wa.me/${NOMOR_ADMIN_DRIVER}?text=${encodeURIComponent(pesan)}`, "_blank");
+        });
+    })
+    .catch((err) => {
+      tombol.disabled = false;
+      tombol.innerText = "Daftar Sekarang";
+      if (err.code === "auth/email-already-in-use") return alert("No. WA ini sudah pernah dipakai daftar sebelumnya.");
+      alert("Error: " + err.message);
+    });
+};
+
+window.prosesLogin = function () {
+  const wa = document.getElementById("loginWA").value.trim();
+  const pass = document.getElementById("loginPass").value;
+  if (!wa || !pass) return alert("Mohon isi No. WA & kata sandi.");
+
+  const tombol = document.getElementById("ui-btn-login");
+  tombol.disabled = true;
+  tombol.innerText = "Loading... ⏳";
+
+  signInWithEmailAndPassword(auth, emailDariWa(wa), pass)
+    .then(() => tanganiLoginSukses(wa, tombol))
+    .catch((err) => {
+      if (err.code === "auth/user-not-found" || err.code === "auth/invalid-credential") {
+        return migrasiAkunLama(wa, pass, tombol);
+      }
+      if (err.code === "auth/wrong-password") {
+        tombol.disabled = false;
+        tombol.innerText = "Masuk";
+        return alert("No. WA atau kata sandi salah.");
+      }
+      tombol.disabled = false;
+      tombol.innerText = "Masuk";
+      alert("Error: " + err.message);
+    });
+};
+
+window.logoutResto = function () {
+  if (!confirm("Yakin mau keluar akun?")) return;
+  hapusSesiResto();
+  signOut(auth).finally(() => location.reload());
+};
